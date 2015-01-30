@@ -81,6 +81,7 @@
 #define IGNORED_EVENT (0)
 #define PROCESSED_EVENT (1)
 
+#define METERS_PER_FOOT (0.3048)
 
 #ifdef __cplusplus
 extern "C" {

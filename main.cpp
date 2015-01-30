@@ -45,6 +45,8 @@ static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags 
                               char inVirtualKey, void* inRefcon, int losingFocus);
 static int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
                                XPLMMouseStatus inMouse, void* inRefcon);
+static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
+                         int inCounter, void* inRefcon);
 
 
 // To define, pass -DVERSION=vX.Y.X when building
@@ -70,8 +72,8 @@ static const float FL_CB_INTERVAL = 0.020; // -1.0 == every frame, otherwise a t
 static bool gPTT_On = false;
 // static bool gPilotEdgePlugin = false;
 
-#define WINDOW_WIDTH (290/2)
-#define WINDOW_HEIGHT (60/2)
+#define WINDOW_WIDTH (120)
+#define WINDOW_HEIGHT (30)
 static int gCommWinPosX;
 static int gCommWinPosY;
 static int gLastMouseX;
@@ -216,11 +218,10 @@ const string currentDateTime(void)
 float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
                          int inCounter, void* inRefcon)
 {
-    if (!gPluginEnabled || !gRecording) {
-        return IGNORED_EVENT;
-    }
+    if (!gPluginEnabled || !gRecording)
+        return 1.0;
     writeData(XPLMGetDataf(lat_dref), XPLMGetDataf(lon_dref), XPLMGetDataf(alt_dref));
-    return PROCESSED_EVENT;
+    return 1.0;
 }
 
 /**
@@ -315,12 +316,12 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
             // XXX: system state and procedure, what's difference between
             // an unloaded and crashed plane?
             // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_CRASHED\n");
-            gRecording = false
+            gRecording = false;
             break;
         case XPLM_MSG_PLANE_UNLOADED:
             gPlaneLoaded = false;
             gRecording = false;
-            LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_UNLOADED\n");
+            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_UNLOADED\n");
             break;
         default:
             // unknown, anything to do?
@@ -462,7 +463,7 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus i
         break;
     case xplm_MouseUp:
         if (MouseDownX == x || MouseDownY == y) {
-            gRecording = !gRecording;
+            gRecording = gRecording ? false : true;
             // int com1 = XPLMGetDatai(audio_selection_com1_dataref);
             // int com2 = XPLMGetDatai(audio_selection_com2_dataref);
 
