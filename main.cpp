@@ -192,14 +192,14 @@ void writeData(double lat, double lon, double alt, const string t)
 string const currentDateTime(bool useDash)
 {
     time_t now = time(0);
-    string buf(20,  ' ');
+    string buf(22,  '\0');
     // strftime(buf, sizeof(buf), "%FT%XZ", gmtime(&now));
     // strftime(buf, sizeof(buf), "%FT%XZ", localtime(&now));
     if (useDash)
         strftime((char*)buf.c_str(), buf.length(), "%Y-%m-%dT%H-%M-%SZ", gmtime(&now));
     else
         strftime((char*)buf.c_str(),  buf.length(), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
-    return buf;
+    return buf.substr(0, 20);
 }
 
 /**
