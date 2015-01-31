@@ -191,8 +191,7 @@ void writeFileEpilog(void)
  */
 void writeData(double lat, double lon, double alt, const string t)
 {
-    // TODO: elevation probably needs to be in meters
-    // <trkpt lat="46.57608333" lon="8.89241667"><ele>2376</ele></trkpt>
+    // <trkpt lat="46.57608333" lon="8.89241667"><ele>2376.640205</ele></trkpt>
     gFd << "<trkpt lat=\""
         << to_string(lat)
         << "\" lon=\""
@@ -248,8 +247,6 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
  */
 int CommandHandler(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void* inRefcon)
 {
-//    if ((gFlCbCnt % PANEL_CHECK_INTERVAL) == 0) {
-//    }
 //    if (!gPluginEnabled) {
 //        return IGNORED_EVENT;
 //    }
@@ -306,7 +303,6 @@ PLUGIN_API int XPluginEnable(void)
 {
     gPluginEnabled = true;
     LPRINTF("DataRecorder Plugin: XPluginEnable\n");
-
     return PROCESSED_EVENT;
 }
 
