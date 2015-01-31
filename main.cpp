@@ -170,11 +170,11 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 void writeFileProlog(string t)
 {
     gFd << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    gFd << "<gpx version=\"1.1\">\n";
+    gFd << "<gpx version=\"1.0\">\n";
     gFd << "<metadata>\n";
     gFd << "<time>" << t << "</time>\n";
     gFd << "</metadata>\n";
-    gFd << "<trk><name>DataRecorder plugin</name><number>1</number><trkseg>\n";
+    gFd << "<trk><name>DataRecorder plugin</name><trkseg>\n";
 }
 
 /**
@@ -198,8 +198,8 @@ void writeData(double lat, double lon, double alt, const string t)
         << "\" lon=\""
         << to_string(lon)
         << "\"><ele>"
-        // << to_string(alt)
-        << to_string(static_cast<int>(alt))
+        << to_string(alt)
+        // << to_string(static_cast<int>(alt))
         // << to_string(static_cast<int>(alt/METERS_PER_FOOT))
         << "</ele><time>"
         << t
