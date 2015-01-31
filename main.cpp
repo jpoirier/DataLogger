@@ -56,8 +56,8 @@ static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTim
 #define VERSION "vUNKNOWN"
 #endif
 
-// sigh, two levels of macros are needed to stringify
-// the result  of expansion of a macro argument
+// sigh, two levels of macros needed to stringify
+// the result of expansion of a macro argument
 #define STR(v) "DataRecorder " #v  " " __DATE__ " (jdpoirier@gmail.com)\0"
 #define DESC(v) STR(v)
 
@@ -124,9 +124,8 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 
     string t = currentDateTime(true);
     string file = string("DataRecord-") + t + string(".gpx");
-    // const char *ptr = file.c_str() ;
+    // const char *ptr = file.c_str();
     // LPRINTF(ptr);
-    // LPRINTF("\n@@@@the file\n");
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
     if (!gFd.is_open()) {
         LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
@@ -136,7 +135,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
     lon_dref = XPLMFindDataRef("sim/flightmodel/position/longitude");
-    alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");  // meters
+    alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");
 
     // XPLMCommandRef cmd_ref;
     // cmd_ref = XPLMCreateCommand(sCONTACT_ATC, "Contact ATC");
@@ -199,8 +198,8 @@ void writeData(double lat, double lon, double alt, const string t)
         << "\" lon=\""
         << to_string(lon)
         << "\"><ele>"
-        << to_string(alt)
-        // << to_string(static_cast<int>(alt))
+        // << to_string(alt)
+        << to_string(static_cast<int>(alt))
         // << to_string(static_cast<int>(alt/METERS_PER_FOOT))
         << "</ele><time>"
         << t
@@ -233,7 +232,7 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
                          int inCounter, void* inRefcon)
 {
     if (!gPluginEnabled || !gRecording) {
-        LPRINTF("DataRecorder Plugin: recording disabled...\n");
+        // LPRINTF("DataRecorder Plugin: recording disabled...\n");
         return 1.0;
     }
     // LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
@@ -241,7 +240,7 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
                 XPLMGetDataf(lon_dref),
                 XPLMGetDataf(alt_dref),
                 currentDateTime(false));
-    return 1.0;
+    return 0.100; // 10Hz update rate
 }
 
 /**

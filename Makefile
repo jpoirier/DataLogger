@@ -1,4 +1,4 @@
-# 07-11-2014: Only works for Mac at the moment
+#
 CXX=g++
 WINDLLMAIN=
 

@@ -1,5 +1,5 @@
-// Copyright (c) 2014 Joseph D Poirier
-// Distributable under the terms of The New BSD License
+// Copyright (c) 2015 Joseph D Poirier
+// Distributable under the terms of The Simplified BSD License
 // that can be found in the LICENSE file.
 
 #ifndef COMMVIEWER_H
