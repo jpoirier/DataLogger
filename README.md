@@ -1,2 +1,2 @@
-# LocalDat
-A X-Plane plugin that saves a GPS log file of dataref values to a local drive.  The contents of the file can be used for multiple purposes, including upload to online flight analysis solutions such as CloudAhoy.
+# DataRecorder
+An X-Plane plugin that saves GPS data to a log file locally in GPX format. The contents of the file can then be used for multiple purposes, e.g. uploading to an online flight analysis solutions such as CloudAhoy.
