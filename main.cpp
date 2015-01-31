@@ -14,10 +14,12 @@
  //#include <GL/gl.h>
 #endif
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include <string.h>
+#include <string>
 #include <time.h>
+#include <iostream>
 #include <fstream>
 
 #include "./SDK/CHeaders/XPLM/XPLMPlugin.h"
@@ -38,7 +40,7 @@ using namespace std;
 static const string currentDateTime(void);
 static void writeFileProlog(string t);
 static void writeFileEpilog(void);
-static void writeData(double lat, double lon, double alt);
+static void writeData(double lat, double lon, double alt, const string t);
 static int CommandHandler(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void* inRefcon);
 static void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon);
 static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags inFlags,
@@ -56,7 +58,7 @@ static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTim
 
 // sigh, two levels of macros are needed to stringify
 // the result  of expansion of a macro argument
-#define STR(v) "DataRecorder " #v  " " __DATE__ " (jdpoirier@gmail.com)"
+#define STR(v) "DataRecorder " #v  " " __DATE__ " (jdpoirier@gmail.com)\0"
 #define DESC(v) STR(v)
 
 #define STRING2(x) #x
@@ -68,14 +70,14 @@ static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTim
 static XPLMWindowID gDataRecWindow = NULL;
 static bool gPluginEnabled = false;
 static int gPlaneLoaded = 0;
-static const float FL_CB_INTERVAL = 0.020; // -1.0 == every frame, otherwise a time interval
+static const float FL_CB_INTERVAL = 0.100; // -1.0 == every frame, otherwise a time interval
 static bool gPTT_On = false;
 // static bool gPilotEdgePlugin = false;
 
 #define WINDOW_WIDTH (120)
-#define WINDOW_HEIGHT (30)
-static int gCommWinPosX;
-static int gCommWinPosY;
+#define WINDOW_HEIGHT (20)
+static int gRecWinPosX;
+static int gRecWinPosY;
 static int gLastMouseX;
 static int gLastMouseY;
 
@@ -103,6 +105,8 @@ XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
 static bool gRecording = false;
+
+// static FILE *gFp = NULL;
 static ofstream gFd;
 
 XPLMDataRef panel_visible_win_t_dataref;
@@ -116,14 +120,21 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outName, "DataRecorder");
     strcpy(outSig , "jdp.data.recorder");
     strcpy(outDesc, DESC(VERSION));
+    // string t = currentDateTime();
+    string t = "2015-01-30T18:46:02Z";
 
-    string t = currentDateTime();
-    string fName = string("DataRecord-") + t + string(".gpx");
-    gFd.open(fName);
+#if 1
+    string file = string("DataRecord-") + t + string(".gpx");
+    gFd.open(file, ofstream::app);
     if (!gFd.is_open()) {
         LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
         return PROCESSED_EVENT;
     }
+#else
+    gFp = fopen("test.txt", "w");
+    fclose(gFp);
+    return PROCESSED_EVENT;
+#endif
     writeFileProlog(t);
 
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
@@ -141,12 +152,12 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
 
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
-    gCommWinPosX = 0;
-    gCommWinPosY = top - 150;
-    gDataRecWindow = XPLMCreateWindow(gCommWinPosX,                // left
-                                    gCommWinPosY,                // top
-                                    gCommWinPosX+WINDOW_WIDTH,   // right
-                                    gCommWinPosY-WINDOW_HEIGHT,  // bottom
+    gRecWinPosX = 0;
+    gRecWinPosY = top - 150;
+    gDataRecWindow = XPLMCreateWindow(gRecWinPosX,                // left
+                                    gRecWinPosY,                // top
+                                    gRecWinPosX+WINDOW_WIDTH,   // right
+                                    gRecWinPosY-WINDOW_HEIGHT,  // bottom
                                     true,                        // is visible
                                     DrawWindowCallback,
                                     HandleKeyCallback,
@@ -183,7 +194,7 @@ void writeFileEpilog(void)
 /**
  *
  */
-void writeData(double lat, double lon, double alt)
+void writeData(double lat, double lon, double alt, const string t)
 {
     // <trkpt lat="46.57608333" lon="8.89241667"><ele>2376</ele></trkpt>
     gFd << "<trkpt lat=\""
@@ -192,7 +203,9 @@ void writeData(double lat, double lon, double alt)
         << to_string(lon)
         << "\"><ele>"
         << to_string((alt/METERS_PER_FOOT))
-        << "</ele></trkpt>\n";
+        << "</ele><time>"
+        << t
+        << "</time></trkpt>\n";
 }
 
 /**
@@ -203,12 +216,10 @@ void writeData(double lat, double lon, double alt)
 const string currentDateTime(void)
 {
     time_t now = time(0);
-    struct tm tstruct;
-    char buf[80];
-    // tstruct = *localtime(&now);
-    tstruct = *gmtime(&now);
+    char buf[100];
     // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime for more info
-    strftime(buf, sizeof(buf), "%FT%XZ", &tstruct);
+    strftime(buf, sizeof(buf), "%FT%XZ", gmtime(&now));
+    // strftime(buf, sizeof(buf), "%FT%XZ", localtime(&now));
     return buf;
 }
 
@@ -218,9 +229,15 @@ const string currentDateTime(void)
 float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
                          int inCounter, void* inRefcon)
 {
-    if (!gPluginEnabled || !gRecording)
+    if (!gPluginEnabled || !gRecording) {
+        LPRINTF("DataRecorder Plugin: recording disabled...\n");
         return 1.0;
-    writeData(XPLMGetDataf(lat_dref), XPLMGetDataf(lon_dref), XPLMGetDataf(alt_dref));
+    }
+    LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
+    writeData(XPLMGetDataf(lat_dref),
+                XPLMGetDataf(lon_dref),
+                XPLMGetDataf(alt_dref),
+                currentDateTime());
     return 1.0;
 }
 
@@ -395,7 +412,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
         //                str2,
         //                NULL,
         //                xplmFont_Basic);
-
+        LPRINTF("DataRecorder Plugin: DrawWindowCallback...\n");
         sprintf(str1, "Data Recorder: %s", (gRecording ? (char*)"ON" : (char*)"OFF"));
         XPLMDrawString(datarecorder_color,
                        left+4,
@@ -439,9 +456,9 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus i
 
     switch (inMouse) {
     case xplm_MouseDown:
-        // if ((x >= gCommWinPosX+WINDOW_WIDTH-8) &&
-        //     (x <= gCommWinPosX+WINDOW_WIDTH) &&
-        //     (y <= gCommWinPosY) && (y >= gCommWinPosY-8)) {
+        // if ((x >= gRecWinPosX+WINDOW_WIDTH-8) &&
+        //     (x <= gRecWinPosX+WINDOW_WIDTH) &&
+        //     (y <= gRecWinPosY) && (y >= gRecWinPosY-8)) {
         //         windowCloseRequest = 1;
         //     } else {
                 MouseDownX = gLastMouseX = x;
@@ -451,13 +468,13 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus i
     case xplm_MouseDrag:
         // this event fires while xplm_MouseDown
         // and whether the window is being dragged or not
-        gCommWinPosX += (x - gLastMouseX);
-        gCommWinPosY += (y - gLastMouseY);
+        gRecWinPosX += (x - gLastMouseX);
+        gRecWinPosY += (y - gLastMouseY);
         XPLMSetWindowGeometry(gDataRecWindow,
-                              gCommWinPosX,
-                              gCommWinPosY,
-                              gCommWinPosX+WINDOW_WIDTH,
-                              gCommWinPosY-WINDOW_HEIGHT);
+                              gRecWinPosX,
+                              gRecWinPosY,
+                              gRecWinPosX+WINDOW_WIDTH,
+                              gRecWinPosY-WINDOW_HEIGHT);
         gLastMouseX = x;
         gLastMouseY = y;
         break;

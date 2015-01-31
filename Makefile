@@ -37,7 +37,7 @@ else
   LIBS=-lXPLM
   LNFLAGS=-m$(ARCH) -Wl,-O1 -shared -L. -L./SDK/Libraries/Win/
   CFLAGS=-std=c++11 -m$(ARCH) -DAPL=0 -DIBM=1 -DLIN=0 -Wall -fpermissive -DVERSION=$(GIT_VER)
-  WINDLLMAIN=commviewer_win.o
+  WINDLLMAIN=main_win.o
  endif
 endif
 
