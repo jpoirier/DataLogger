@@ -37,7 +37,7 @@
 using namespace std;
 // using namespace moodycamel;
 
-static const string currentDateTime(void);
+static const string currentDateTime(bool useDash);
 static void writeFileProlog(string t);
 static void writeFileEpilog(void);
 static void writeData(double lat, double lon, double alt, const string t);
@@ -70,12 +70,15 @@ static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTim
 static XPLMWindowID gDataRecWindow = NULL;
 static bool gPluginEnabled = false;
 static int gPlaneLoaded = 0;
-static const float FL_CB_INTERVAL = 0.100; // -1.0 == every frame, otherwise a time interval
+
+// FIXME: how to set/change the callback frequency
+// -1.0 == every frame, otherwise a time interval
+static const float FL_CB_INTERVAL = 0.020;
 static bool gPTT_On = false;
 // static bool gPilotEdgePlugin = false;
 
 #define WINDOW_WIDTH (120)
-#define WINDOW_HEIGHT (20)
+#define WINDOW_HEIGHT (30)
 static int gRecWinPosX;
 static int gRecWinPosY;
 static int gLastMouseX;
@@ -105,8 +108,6 @@ XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
 static bool gRecording = false;
-
-// static FILE *gFp = NULL;
 static ofstream gFd;
 
 XPLMDataRef panel_visible_win_t_dataref;
@@ -120,21 +121,17 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outName, "DataRecorder");
     strcpy(outSig , "jdp.data.recorder");
     strcpy(outDesc, DESC(VERSION));
-    // string t = currentDateTime();
-    string t = "2015-01-30T18:46:02Z";
 
-#if 1
+    string t = currentDateTime(true);
     string file = string("DataRecord-") + t + string(".gpx");
-    gFd.open(file, ofstream::app);
+    // const char *ptr = file.c_str() ;
+    // LPRINTF(ptr);
+    // LPRINTF("\n@@@@the file\n");
+    gFd.open(file, ofstream::app); // creates the file if it doesn't exist
     if (!gFd.is_open()) {
         LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
         return PROCESSED_EVENT;
     }
-#else
-    gFp = fopen("test.txt", "w");
-    fclose(gFp);
-    return PROCESSED_EVENT;
-#endif
     writeFileProlog(t);
 
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
@@ -149,23 +146,22 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     //                            (void*)CMD_CONTACT_ATC);
 
     XPLMRegisterFlightLoopCallback(FlightLoopCallback, FL_CB_INTERVAL, NULL);
-    panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
 
+    panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
     gRecWinPosX = 0;
     gRecWinPosY = top - 150;
-    gDataRecWindow = XPLMCreateWindow(gRecWinPosX,                // left
-                                    gRecWinPosY,                // top
-                                    gRecWinPosX+WINDOW_WIDTH,   // right
-                                    gRecWinPosY-WINDOW_HEIGHT,  // bottom
-                                    true,                        // is visible
-                                    DrawWindowCallback,
-                                    HandleKeyCallback,
-                                    HandleMouseCallback,
-                                    (void*)DATARECORDER_WINDOW);  // Refcon
+    gDataRecWindow = XPLMCreateWindow(gRecWinPosX,                  // left
+                                      gRecWinPosY,                  // top
+                                      gRecWinPosX+WINDOW_WIDTH,     // right
+                                      gRecWinPosY-WINDOW_HEIGHT,    // bottom
+                                      true,                         // is visible
+                                      DrawWindowCallback,
+                                      HandleKeyCallback,
+                                      HandleMouseCallback,
+                                      (void*)DATARECORDER_WINDOW);  // Refcon
 
     LPRINTF("DataRecorder Plugin: startup completed\n");
-
     return PROCESSED_EVENT;
 }
 
@@ -196,13 +192,16 @@ void writeFileEpilog(void)
  */
 void writeData(double lat, double lon, double alt, const string t)
 {
+    // TODO: elevation probably needs to be in meters
     // <trkpt lat="46.57608333" lon="8.89241667"><ele>2376</ele></trkpt>
     gFd << "<trkpt lat=\""
         << to_string(lat)
         << "\" lon=\""
         << to_string(lon)
         << "\"><ele>"
-        << to_string((alt/METERS_PER_FOOT))
+        << to_string(alt)
+        // << to_string(static_cast<int>(alt))
+        // << to_string(static_cast<int>(alt/METERS_PER_FOOT))
         << "</ele><time>"
         << t
         << "</time></trkpt>\n";
@@ -213,31 +212,35 @@ void writeData(double lat, double lon, double alt, const string t)
  *
  * @return YYYY-MM-DDTHH:MM:SSZ, e.g. 2015-01-30T18:46:02Z.
  */
-const string currentDateTime(void)
+const string currentDateTime(bool useDash)
 {
     time_t now = time(0);
-    char buf[100];
-    // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime for more info
-    strftime(buf, sizeof(buf), "%FT%XZ", gmtime(&now));
+    char buf[24];
+    // strftime(buf, sizeof(buf), "%FT%XZ", gmtime(&now));
     // strftime(buf, sizeof(buf), "%FT%XZ", localtime(&now));
+    if (useDash)
+        strftime(buf, sizeof(buf), "%Y-%m-%dT%H-%M-%SZ", gmtime(&now));
+    else
+        strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
     return buf;
 }
 
 /**
  *
  */
-float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
+float FlightLoopCallback(float inElapsedSinceLastCall,
+                         float inElapsedTimeSinceLastFlightLoop,
                          int inCounter, void* inRefcon)
 {
     if (!gPluginEnabled || !gRecording) {
         LPRINTF("DataRecorder Plugin: recording disabled...\n");
         return 1.0;
     }
-    LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
+    // LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
     writeData(XPLMGetDataf(lat_dref),
                 XPLMGetDataf(lon_dref),
                 XPLMGetDataf(alt_dref),
-                currentDateTime());
+                currentDateTime(false));
     return 1.0;
 }
 
@@ -337,7 +340,6 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
             break;
         case XPLM_MSG_PLANE_UNLOADED:
             gPlaneLoaded = false;
-            gRecording = false;
             // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_UNLOADED\n");
             break;
         default:
@@ -413,7 +415,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
         //                NULL,
         //                xplmFont_Basic);
         LPRINTF("DataRecorder Plugin: DrawWindowCallback...\n");
-        sprintf(str1, "Data Recorder: %s", (gRecording ? (char*)"ON" : (char*)"OFF"));
+        sprintf(str1, "Data Recorder: %s", (gRecording ? (char*)"ON " : (char*)"OFF"));
         XPLMDrawString(datarecorder_color,
                        left+4,
                        top-20,
