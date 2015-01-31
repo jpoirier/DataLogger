@@ -21,6 +21,7 @@
 #include <time.h>
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 #include "./SDK/CHeaders/XPLM/XPLMPlugin.h"
 #include "./SDK/CHeaders/XPLM/XPLMProcessing.h"
@@ -37,11 +38,10 @@
 using namespace std;
 // using namespace moodycamel;
 
-static const string currentDateTime(bool useDash);
+static string const currentDateTime(bool useDash);
 static void writeFileProlog(string t);
 static void writeFileEpilog(void);
 static void writeData(double lat, double lon, double alt, const string t);
-static int CommandHandler(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void* inRefcon);
 static void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon);
 static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags inFlags,
                               char inVirtualKey, void* inRefcon, int losingFocus);
@@ -51,12 +51,13 @@ static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTim
                          int inCounter, void* inRefcon);
 
 
-// To define, pass -DVERSION=vX.Y.X when building
+// To define, pass -DVERSION=vX.Y.X when building,
+// e.g. in a make file
 #ifndef VERSION
 #define VERSION "vUNKNOWN"
 #endif
 
-// sigh, two levels of macros needed to stringify
+// sigh. two levels of macros needed to stringify
 // the result of expansion of a macro argument
 #define STR(v) "DataRecorder " #v  " " __DATE__ " (jdpoirier@gmail.com)\0"
 #define DESC(v) STR(v)
@@ -71,11 +72,8 @@ static XPLMWindowID gDataRecWindow = NULL;
 static bool gPluginEnabled = false;
 static int gPlaneLoaded = 0;
 
-// FIXME: how to set/change the callback frequency
-// -1.0 == every frame, otherwise a time interval
-static const float FL_CB_INTERVAL = 0.020;
-static bool gPTT_On = false;
-// static bool gPilotEdgePlugin = false;
+// time interval > 0 (no callback) > flight loop frame rate
+static float gFlCbInterval = 0.100;
 
 #define WINDOW_WIDTH (120)
 #define WINDOW_HEIGHT (30)
@@ -87,21 +85,8 @@ static int gLastMouseY;
 // general & misc
 enum {
     PLUGIN_PLANE_ID = 0
-    ,CMD_CONTACT_ATC
     ,DATARECORDER_WINDOW
 };
-
-// Command Refs
-// #define sCONTACT_ATC "sim/operation/contact_atc"
-// #define PILOTEDGE_SIG "com.pilotedge.plugin.xplane"
-
-// XPLMDataRef avionics_power_on_dataref;
-// XPLMDataRef audio_selection_com1_dataref;
-// XPLMDataRef audio_selection_com2_dataref;
-
-// XPLMDataRef pilotedge_rx_status_dataref = NULL;
-// XPLMDataRef pilotedge_tx_status_dataref = NULL;
-// XPLMDataRef pilotedge_connected_dataref = NULL;
 
 XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
@@ -124,8 +109,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 
     string t = currentDateTime(true);
     string file = string("DataRecord-") + t + string(".gpx");
-    // const char *ptr = file.c_str();
-    // LPRINTF(ptr);
+    // const char *ptr = file.c_str(); LPRINTF(ptr);
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
     if (!gFd.is_open()) {
         LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
@@ -137,14 +121,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     lon_dref = XPLMFindDataRef("sim/flightmodel/position/longitude");
     alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");
 
-    // XPLMCommandRef cmd_ref;
-    // cmd_ref = XPLMCreateCommand(sCONTACT_ATC, "Contact ATC");
-    // XPLMRegisterCommandHandler(cmd_ref,
-    //                            CommandHandler,
-    //                            CMD_HNDLR_EPILOG,
-    //                            (void*)CMD_CONTACT_ATC);
-
-    XPLMRegisterFlightLoopCallback(FlightLoopCallback, FL_CB_INTERVAL, NULL);
+    XPLMRegisterFlightLoopCallback(FlightLoopCallback, gFlCbInterval, NULL);
 
     panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
@@ -206,20 +183,22 @@ void writeData(double lat, double lon, double alt, const string t)
 }
 
 /**
- * Returns the current date and GMT.
+ * Returns the current date and Zulu time.
  *
- * @return YYYY-MM-DDTHH:MM:SSZ, e.g. 2015-01-30T18:46:02Z.
+ * @return
+ *      if useDash: YYYY-MM-DDTHH-MM-SSZ
+ *      else:       YYYY-MM-DDTHH:MM:SSZ
  */
-const string currentDateTime(bool useDash)
+string const currentDateTime(bool useDash)
 {
     time_t now = time(0);
-    char buf[24];
+    string buf(24,  '\0');
     // strftime(buf, sizeof(buf), "%FT%XZ", gmtime(&now));
     // strftime(buf, sizeof(buf), "%FT%XZ", localtime(&now));
     if (useDash)
-        strftime(buf, sizeof(buf), "%Y-%m-%dT%H-%M-%SZ", gmtime(&now));
+        strftime(buf.c_str(), sizeof(buf), "%Y-%m-%dT%H-%M-%SZ", gmtime(&now));
     else
-        strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
+        strftime(buf.c_str(), sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
     return buf;
 }
 
@@ -232,44 +211,14 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
 {
     if (!gPluginEnabled || !gRecording) {
         // LPRINTF("DataRecorder Plugin: recording disabled...\n");
-        return 1.0;
+        return 1.0;  // once per second when not recording
     }
     // LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
     writeData(XPLMGetDataf(lat_dref),
                 XPLMGetDataf(lon_dref),
                 XPLMGetDataf(alt_dref),
                 currentDateTime(false));
-    return 0.100; // 10Hz update rate
-}
-
-/**
- *
- */
-int CommandHandler(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void* inRefcon)
-{
-//    if (!gPluginEnabled) {
-//        return IGNORED_EVENT;
-//    }
-
-    switch (reinterpret_cast<size_t>(inRefcon)) {
-    case CMD_CONTACT_ATC:
-        switch (inPhase) {
-        case xplm_CommandBegin:
-        case xplm_CommandContinue:
-            gPTT_On = true;
-            break;
-        case xplm_CommandEnd:
-            gPTT_On = false;
-            break;
-        default:
-            break;
-        }
-        break;
-    default:
-        break;
-    }
-
-    return IGNORED_EVENT;
+    return gFlCbInterval; // 10Hz update rate?
 }
 
 /**
@@ -277,8 +226,7 @@ int CommandHandler(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void* inR
  */
 PLUGIN_API void XPluginStop(void)
 {
-    gPluginEnabled = false;
-    gRecording = false;
+    gPluginEnabled = gRecording = false;
     XPLMUnregisterFlightLoopCallback(FlightLoopCallback, NULL);
     if (gFd.is_open()) {
         writeFileEpilog();
@@ -350,7 +298,6 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
 void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 {
     static char str1[100];
-    // static char str2[100];
     // RGB: White [1.0, 1.0, 1.0], Lime Green [0.0, 1.0, 0.0]
     static float datarecorder_color[] = {0.0, 1.0, 0.0};
 
@@ -361,54 +308,13 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     int top;
     int right;
     int bottom;
-    // int rx_status;
-    // int tx_status;
-    // char* connected;
 
     // XXX: are inWindowIDs our XPLMCreateWindow return pointers
     XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
-    // printf("DataRecorder, gDataRecWindow: %p, inWindowID: %p, left:%d, right:%d, top:%d, bottom:%d\n",
-    //     gDataRecWindow, inWindowID, left, right, top, bottom);
     XPLMDrawTranslucentDarkBox(left, top, right, bottom);
-
-    // if (!gPilotEdgePlugin) {
-    //     if ((XPLMFindPluginBySignature(PILOTEDGE_SIG)) != XPLM_NO_PLUGIN_ID) {
-    //         gPilotEdgePlugin = true;
-    //         pilotedge_rx_status_dataref = XPLMFindDataRef("pilotedge/radio/rx_status");
-    //         pilotedge_tx_status_dataref = XPLMFindDataRef("pilotedge/radio/tx_status");
-    //         pilotedge_connected_dataref = XPLMFindDataRef("pilotedge/status/connected");
-    //     }
-    // }
 
     switch (reinterpret_cast<size_t>(inRefcon)) {
     case DATARECORDER_WINDOW:
-        // rx_status = (pilotedge_rx_status_dataref ? XPLMGetDatai(pilotedge_rx_status_dataref) : false) ? 1 : 0;
-        // tx_status = (pilotedge_tx_status_dataref ? XPLMGetDatai(pilotedge_tx_status_dataref) : false) ? 1 : 0;
-        // connected = (pilotedge_connected_dataref ? XPLMGetDatai(pilotedge_connected_dataref) : false) ? (char*)"YES" : (char*)"NO ";
-        // sprintf(str1, "[PilotEdge] Connected: %s \t\t\tTX: %d\t\t\tRX: %d",
-        //         connected,
-        //         tx_status,
-        //         rx_status);
-
-        // sprintf(str2,"%s\t\t\tCOM1: %d\t\t\tCOM2: %d",
-        //         (char*)(gPTT_On ? "PTT: ON " : "PTT: OFF"),
-        //         XPLMGetDatai(audio_selection_com1_dataref),
-        //         XPLMGetDatai(audio_selection_com2_dataref));
-
-        // text to window, NULL indicates no word wrap
-        // XPLMDrawString(datarecorder_color,
-        //                left+4,
-        //                top-20,
-        //                str1,
-        //                NULL,
-        //                xplmFont_Basic);
-
-        // XPLMDrawString(datarecorder_color,
-        //                left+4,
-        //                top-40,
-        //                str2,
-        //                NULL,
-        //                xplmFont_Basic);
         LPRINTF("DataRecorder Plugin: DrawWindowCallback...\n");
         sprintf(str1, "Data Recorder: %s", (gRecording ? (char*)"ON " : (char*)"OFF"));
         XPLMDrawString(datarecorder_color,
@@ -437,12 +343,8 @@ void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags inFlags
  *
  *
  */
- #define COMMS_UNCHANGED    (0)
- #define COM1_CHANGED       (1)
- #define COM2_CHANGED       (2)
- #define COMM_UNSELECTED    (0)
- #define COMM_SELECTED      (1)
-int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus inMouse, void* inRefcon)
+int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
+                        XPLMMouseStatus inMouse, void* inRefcon)
 {
     // static int com_changed = COMMS_UNCHANGED;
     static int MouseDownX;
@@ -463,8 +365,8 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus i
         // }
         break;
     case xplm_MouseDrag:
-        // this event fires while xplm_MouseDown
-        // and whether the window is being dragged or not
+        // this event fires while xplm_MouseDown is active
+        // and whether or not the window is being dragged
         gRecWinPosX += (x - gLastMouseX);
         gRecWinPosY += (y - gLastMouseY);
         XPLMSetWindowGeometry(gDataRecWindow,
@@ -478,28 +380,6 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus i
     case xplm_MouseUp:
         if (MouseDownX == x || MouseDownY == y) {
             gRecording = gRecording ? false : true;
-            // int com1 = XPLMGetDatai(audio_selection_com1_dataref);
-            // int com2 = XPLMGetDatai(audio_selection_com2_dataref);
-
-            // if (com1 && com2 && com_changed) {
-            //     switch (com_changed) {
-            //     case COM1_CHANGED:
-            //         XPLMSetDatai(audio_selection_com1_dataref, COMM_UNSELECTED);
-            //         break;
-            //     case COM2_CHANGED:
-            //         XPLMSetDatai(audio_selection_com2_dataref, COMM_UNSELECTED);
-            //         break;
-            //     default:
-            //         break;
-            //     }
-            //     com_changed = COMMS_UNCHANGED;
-            // } else if (!com1 && com2) {
-            //     com_changed = COM1_CHANGED;
-            //     XPLMSetDatai(audio_selection_com1_dataref, COMM_SELECTED);
-            // }  else if (com1 && !com2) {
-            //     com_changed = COM2_CHANGED;
-            //     XPLMSetDatai(audio_selection_com2_dataref, COMM_SELECTED);
-            // }
         }
         break;
     } // switch (inMouse)

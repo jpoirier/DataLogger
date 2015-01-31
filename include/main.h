@@ -6,7 +6,7 @@
 #define COMMVIEWER_H
 
 
-//#include "defs.h"
+
 
 #ifdef __cplusplus
 extern "C" {
