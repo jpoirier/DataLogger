@@ -315,7 +315,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 
     switch (reinterpret_cast<size_t>(inRefcon)) {
     case DATARECORDER_WINDOW:
-        LPRINTF("DataRecorder Plugin: DrawWindowCallback...\n");
+        // LPRINTF("DataRecorder Plugin: DrawWindowCallback...\n");
         sprintf(str1, "Data Recorder: %s", (gRecording ? (char*)"ON " : (char*)"OFF"));
         XPLMDrawString(datarecorder_color,
                        left+4,
