@@ -73,7 +73,7 @@ static bool gPluginEnabled = false;
 static int gPlaneLoaded = 0;
 
 // time interval > 0 (no callback) > flight loop frame rate
-static float gFlCbInterval = 0.100;
+static float gFlCbInterval = (float)0.100;
 
 #define WINDOW_WIDTH (120)
 #define WINDOW_HEIGHT (30)
@@ -192,13 +192,13 @@ void writeData(double lat, double lon, double alt, const string t)
 string const currentDateTime(bool useDash)
 {
     time_t now = time(0);
-    string buf(24,  '\0');
+    string buf(20,  ' ');
     // strftime(buf, sizeof(buf), "%FT%XZ", gmtime(&now));
     // strftime(buf, sizeof(buf), "%FT%XZ", localtime(&now));
     if (useDash)
-        strftime(buf.c_str(), sizeof(buf), "%Y-%m-%dT%H-%M-%SZ", gmtime(&now));
+        strftime((char*)buf.c_str(), buf.length(), "%Y-%m-%dT%H-%M-%SZ", gmtime(&now));
     else
-        strftime(buf.c_str(), sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
+        strftime((char*)buf.c_str(),  buf.length(), "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
     return buf;
 }
 
