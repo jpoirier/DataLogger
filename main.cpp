@@ -21,7 +21,7 @@
 #include <time.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
+#include <atomic>
 
 #include "./SDK/CHeaders/XPLM/XPLMPlugin.h"
 #include "./SDK/CHeaders/XPLM/XPLMProcessing.h"
@@ -38,6 +38,10 @@
 using namespace std;
 // using namespace moodycamel;
 
+static void enableLogging(void)
+static void disableLogging(void);
+static bool openLogFile(void);
+static void closeLogFile(void);
 static string const currentDateTime(bool useDash);
 static void writeFileProlog(string t);
 static void writeFileEpilog(void);
@@ -69,13 +73,13 @@ static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTim
 
 
 static XPLMWindowID gDataRecWindow = NULL;
-static bool gPluginEnabled = false;
-static int gPlaneLoaded = 0;
+static atomic<bool> gPluginEnabled(false);
+// static atomic<int> gPlaneLoaded(0);
 
 // time interval > 0 (no callback) > flight loop frame rate
 static float gFlCbInterval = (float)0.100;
 
-#define WINDOW_WIDTH (120)
+#define WINDOW_WIDTH (150)
 #define WINDOW_HEIGHT (30)
 static int gRecWinPosX;
 static int gRecWinPosY;
@@ -92,7 +96,8 @@ XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
-static bool gRecording = false;
+static atomic<bool> gLogging(false);
+static atomic<bool> gFileOpenErr(false);
 static ofstream gFd;
 
 XPLMDataRef panel_visible_win_t_dataref;
@@ -107,21 +112,9 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outSig , "jdp.data.recorder");
     strcpy(outDesc, DESC(VERSION));
 
-    string t = currentDateTime(true);
-    string file = string("DataRecord-") + t + string(".gpx");
-    // const char *ptr = file.c_str(); LPRINTF(ptr);
-    gFd.open(file, ofstream::app); // creates the file if it doesn't exist
-    if (!gFd.is_open()) {
-        LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
-        return PROCESSED_EVENT;
-    }
-    writeFileProlog(t);
-
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
     lon_dref = XPLMFindDataRef("sim/flightmodel/position/longitude");
     alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");
-
-    XPLMRegisterFlightLoopCallback(FlightLoopCallback, gFlCbInterval, NULL);
 
     panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
@@ -136,9 +129,40 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
                                       HandleKeyCallback,
                                       HandleMouseCallback,
                                       (void*)DATARECORDER_WINDOW);  // Refcon
-
     LPRINTF("DataRecorder Plugin: startup completed\n");
     return PROCESSED_EVENT;
+}
+
+/**
+ *
+ */
+bool openLogFile(void)
+{
+    if (gFd.is_open())
+        closeLogFile()
+
+    string t = currentDateTime(true);
+    string file = string("DataRecord-") + t + string(".gpx");
+    // const char *ptr = file.c_str(); LPRINTF(ptr);
+
+    gFd.open(file, ofstream::app); // creates the file if it doesn't exist
+    if (!gFd.is_open()) {
+        LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
+        return false;
+    }
+    writeFileProlog(t);
+    return true;
+}
+
+/**
+ *
+ */
+void closeLogFile(void)
+{
+    if (gFd.is_open()) {
+        writeFileEpilog();
+        gFd.close();
+    }
 }
 
 /**
@@ -209,9 +233,9 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
                          float inElapsedTimeSinceLastFlightLoop,
                          int inCounter, void* inRefcon)
 {
-    if (!gPluginEnabled || !gRecording) {
+    if (!gPluginEnabled.load() || !gLogging.load()) {
         // LPRINTF("DataRecorder Plugin: recording disabled...\n");
-        return 1.0;  // once per second when not recording
+        return 0.0;  // disable the callback
     }
     // LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
     writeData(XPLMGetDataf(lat_dref),
@@ -224,14 +248,34 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
 /**
  *
  */
+void enableLogging(void){
+    if (openLogFile()) {
+        gLogging.store(true)
+        XPLMRegisterFlightLoopCallback(FlightLoopCallback, -1.0, NULL);
+    } else {
+        gFileOpenErr.store(true)
+    }
+}
+
+/**
+ *
+ */
+void disableLogging(void)
+{
+    gLogging.store(false);
+    XPLMUnregisterFlightLoopCallback(FlightLoopCallback, NULL);
+    closeLogFile();
+}
+
+/**
+ *
+ */
 PLUGIN_API void XPluginStop(void)
 {
-    gPluginEnabled = gRecording = false;
+    gPluginEnabled.store(false);
+    gLogging.store(false);
     XPLMUnregisterFlightLoopCallback(FlightLoopCallback, NULL);
-    if (gFd.is_open()) {
-        writeFileEpilog();
-        gFd.close();
-    }
+    closeLogFile();
     LPRINTF("DataRecorder Plugin: XPluginStop\n");
 }
 
@@ -240,7 +284,8 @@ PLUGIN_API void XPluginStop(void)
  */
 PLUGIN_API void XPluginDisable(void)
 {
-    gPluginEnabled = false;
+    gPluginEnabled.store(false);
+    disableLogging();
     LPRINTF("DataRecorder Plugin: XPluginDisable\n");
 }
 
@@ -249,8 +294,8 @@ PLUGIN_API void XPluginDisable(void)
  */
 PLUGIN_API int XPluginEnable(void)
 {
-    gPluginEnabled = true;
-    LPRINTF("DataRecorder Plugin: XPluginEnable\n");
+    gPluginEnabled.store(true);
+     LPRINTF("DataRecorder Plugin: XPluginEnable\n");
     return PROCESSED_EVENT;
 }
 
@@ -263,7 +308,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
         // size_t inparam = reinterpret_cast<size_t>(inParam);
         switch (inMsg) {
         case XPLM_MSG_PLANE_LOADED:
-            gPlaneLoaded = true;
+            // gPlaneLoaded.store();
             // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_LOADED\n");
             break;
         case XPLM_MSG_AIRPORT_LOADED:
@@ -279,10 +324,9 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
             // XXX: system state and procedure, what's difference between
             // an unloaded and crashed plane?
             // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_CRASHED\n");
-            gRecording = false;
             break;
         case XPLM_MSG_PLANE_UNLOADED:
-            gPlaneLoaded = false;
+            // gPlaneLoaded.store();
             // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_UNLOADED\n");
             break;
         default:
@@ -300,6 +344,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     static char str1[100];
     // RGB: White [1.0, 1.0, 1.0], Lime Green [0.0, 1.0, 0.0]
     static float datarecorder_color[] = {0.0, 1.0, 0.0};
+    static int errCnt = 0;
 
     if (inWindowID != gDataRecWindow)
         return;
@@ -315,8 +360,23 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 
     switch (reinterpret_cast<size_t>(inRefcon)) {
     case DATARECORDER_WINDOW:
-        // LPRINTF("DataRecorder Plugin: DrawWindowCallback...\n");
-        sprintf(str1, "Data Recorder: %s", (gRecording ? (char*)"ON " : (char*)"OFF"));
+        switch (gLogging.load()) {
+        case true:
+            sprintf(str1, "Logging - %s", (char*)"Enabled...");
+            break;
+        case false:
+            if (gFileOpenErr.load()) {
+                errCnt += 1;
+                sprintf(str1, "Logging - %s", (char*)"Error opening file");
+                if (errCnt == 120) {
+                    errCnt = 0;
+                    gFileOpenErr.store(false);
+                }
+            } else {
+                sprintf(str1, "Logging - %s", (char*)"Click to enable");
+            }
+            break
+        }
         XPLMDrawString(datarecorder_color,
                        left+4,
                        top-20,
@@ -378,8 +438,19 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
         gLastMouseY = y;
         break;
     case xplm_MouseUp:
+        // Ignore mouse-clicks for a short time
+        // for a open file error.
+        if (gFileOpenErr.load())
+            break;
         if (MouseDownX == x || MouseDownY == y) {
-            gRecording = gRecording ? false : true;
+            switch (gLogging.load()) {
+            case true:
+                disableLogging();
+                break;
+            case false:
+                enableLogging();
+                break
+            }
         }
         break;
     } // switch (inMouse)
