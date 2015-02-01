@@ -77,8 +77,8 @@ static XPLMWindowID gDataRecWindow = NULL;
 static atomic<bool> gPluginEnabled(false);
 // static atomic<int> gPlaneLoaded(0);
 
-// time interval > 0 (no callback) > flight loop frame rate
-static float gFlCbInterval = (float)0.100;
+// time interval > 0.0 (no callback) > flight loop frame rate
+static atomic<float> gFlCbInterval(0.100f); // 10Hz update rate?
 
 #define WINDOW_WIDTH (180)
 #define WINDOW_HEIGHT (30)
@@ -119,6 +119,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
     lon_dref = XPLMFindDataRef("sim/flightmodel/position/longitude");
     alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");
+    XPLMRegisterFlightLoopCallback(StatusCheckCallback, 5.0, NULL);
     panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
     gRecWinPosX = 0;
@@ -132,7 +133,6 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
                                       HandleKeyCallback,
                                       HandleMouseCallback,
                                       (void*)DATARECORDER_WINDOW);  // Refcon
-    XPLMRegisterFlightLoopCallback(StatusCheckCallback, 5.0, NULL);
     LPRINTF("DataRecorder Plugin: startup completed\n");
     return PROCESSED_EVENT;
 }
@@ -298,7 +298,7 @@ float LoggerCallback(float inElapsedSinceLastCall,
                 XPLMGetDataf(lon_dref),
                 XPLMGetDataf(alt_dref),
                 currentDateTime(false));
-    return gFlCbInterval; // 10Hz update rate?
+    return gFlCbInterval.load();
 }
 
 /**
