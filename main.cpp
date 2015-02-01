@@ -38,7 +38,7 @@
 using namespace std;
 // using namespace moodycamel;
 
-static void enableLogging(void)
+static void enableLogging(void);
 static void disableLogging(void);
 static bool openLogFile(void);
 static void closeLogFile(void);
@@ -115,7 +115,6 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
     lon_dref = XPLMFindDataRef("sim/flightmodel/position/longitude");
     alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");
-
     panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
     gRecWinPosX = 0;
@@ -139,7 +138,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 bool openLogFile(void)
 {
     if (gFd.is_open())
-        closeLogFile()
+        closeLogFile();
 
     string t = currentDateTime(true);
     string file = string("DataRecord-") + t + string(".gpx");
@@ -250,10 +249,10 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
  */
 void enableLogging(void){
     if (openLogFile()) {
-        gLogging.store(true)
+        gLogging.store(true);
         XPLMRegisterFlightLoopCallback(FlightLoopCallback, -1.0, NULL);
     } else {
-        gFileOpenErr.store(true)
+        gFileOpenErr.store(true);
     }
 }
 
@@ -375,7 +374,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
             } else {
                 sprintf(str1, "Logging - %s", (char*)"Click to enable");
             }
-            break
+            break;
         }
         XPLMDrawString(datarecorder_color,
                        left+4,
@@ -449,7 +448,7 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
                 break;
             case false:
                 enableLogging();
-                break
+                break;
             }
         }
         break;
