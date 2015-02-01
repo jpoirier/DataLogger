@@ -51,9 +51,10 @@ static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags 
                               char inVirtualKey, void* inRefcon, int losingFocus);
 static int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
                                XPLMMouseStatus inMouse, void* inRefcon);
-static float FlightLoopCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
+static float LoggerCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
                          int inCounter, void* inRefcon);
-
+static float StatusCheckCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
+                          int inCounter, void* inRefcon);
 
 // To define, pass -DVERSION=vX.Y.X when building,
 // e.g. in a make file
@@ -79,7 +80,7 @@ static atomic<bool> gPluginEnabled(false);
 // time interval > 0 (no callback) > flight loop frame rate
 static float gFlCbInterval = (float)0.100;
 
-#define WINDOW_WIDTH (150)
+#define WINDOW_WIDTH (180)
 #define WINDOW_HEIGHT (30)
 static int gRecWinPosX;
 static int gRecWinPosY;
@@ -92,12 +93,14 @@ enum {
     ,DATARECORDER_WINDOW
 };
 
+XPLMDataRef gs_dref = NULL;
 XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
 static atomic<bool> gLogging(false);
 static atomic<bool> gFileOpenErr(false);
+static atomic<bool> gFlashUI(false);
 static ofstream gFd;
 
 XPLMDataRef panel_visible_win_t_dataref;
@@ -112,6 +115,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outSig , "jdp.data.recorder");
     strcpy(outDesc, DESC(VERSION));
 
+    gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
     lon_dref = XPLMFindDataRef("sim/flightmodel/position/longitude");
     alt_dref = XPLMFindDataRef("sim/flightmodel/position/elevation");
@@ -128,6 +132,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
                                       HandleKeyCallback,
                                       HandleMouseCallback,
                                       (void*)DATARECORDER_WINDOW);  // Refcon
+    XPLMRegisterFlightLoopCallback(StatusCheckCallback, 5.0, NULL);
     LPRINTF("DataRecorder Plugin: startup completed\n");
     return PROCESSED_EVENT;
 }
@@ -191,6 +196,17 @@ void writeFileEpilog(void)
  */
 void writeData(double lat, double lon, double alt, const string t)
 {
+    static double lat_ = 0.0;
+    static double lon_ = 0.0;
+    static double alt_ = 0.0;
+
+    if (lat == lat_ && lon == lon_ && alt == alt_)
+        return;
+
+    lat_ = lat;
+    lon_ = lon;
+    alt_ = alt;
+
     // <trkpt lat="46.57608333" lon="8.89241667"><ele>2376.640205</ele></trkpt>
     gFd << "<trkpt lat=\""
         << to_string(lat)
@@ -228,15 +244,56 @@ string const currentDateTime(bool useDash)
 /**
  *
  */
-float FlightLoopCallback(float inElapsedSinceLastCall,
-                         float inElapsedTimeSinceLastFlightLoop,
-                         int inCounter, void* inRefcon)
+float StatusCheckCallback(float inElapsedSinceLastCall,
+                          float inElapsedTimeSinceLastFlightLoop,
+                          int inCounter, void* inRefcon)
+{
+    static int cnt = 0;
+    static bool doGrndCheck = true;
+    if (!gPluginEnabled.load()) {
+        // LPRINTF("DataRecorder Plugin: StatusCheckCallback...\n");
+        return 10.0;
+    }
+    if (!gLogging.load()) {
+        if (gFlashUI.load()) {
+            cnt += 1;
+            if (cnt >= 20) {
+                cnt = 0;
+                gFlashUI.store(false);
+            }
+        } else if (doGrndCheck) {
+            int gs = (int)XPLMGetDataf(gs_dref);
+            if (gs > 2) {
+                cnt += 1;
+            } else {
+                cnt = 0;
+                doGrndCheck = true;
+                gFlashUI.store(false);
+            }
+            if (cnt >= 5) {
+                cnt = 0;
+                gFlashUI.store(true);
+                doGrndCheck = false;
+            }
+        }
+        return 1.0;
+    }
+    cnt = 0;
+    doGrndCheck = true;
+    return 10.0;
+}
+
+/**
+ *
+ */
+float LoggerCallback(float inElapsedSinceLastCall,
+                     float inElapsedTimeSinceLastFlightLoop,
+                     int inCounter, void* inRefcon)
 {
     if (!gPluginEnabled.load() || !gLogging.load()) {
-        // LPRINTF("DataRecorder Plugin: recording disabled...\n");
         return 0.0;  // disable the callback
     }
-    // LPRINTF("DataRecorder Plugin: FlightLoopCallback writing data...\n");
+    // LPRINTF("DataRecorder Plugin: LoggerCallback writing data...\n");
     writeData(XPLMGetDataf(lat_dref),
                 XPLMGetDataf(lon_dref),
                 XPLMGetDataf(alt_dref),
@@ -250,7 +307,7 @@ float FlightLoopCallback(float inElapsedSinceLastCall,
 void enableLogging(void){
     if (openLogFile()) {
         gLogging.store(true);
-        XPLMRegisterFlightLoopCallback(FlightLoopCallback, -1.0, NULL);
+        XPLMRegisterFlightLoopCallback(LoggerCallback, -1.0, NULL);
     } else {
         gFileOpenErr.store(true);
     }
@@ -262,7 +319,7 @@ void enableLogging(void){
 void disableLogging(void)
 {
     gLogging.store(false);
-    XPLMUnregisterFlightLoopCallback(FlightLoopCallback, NULL);
+    XPLMUnregisterFlightLoopCallback(LoggerCallback, NULL);
     closeLogFile();
 }
 
@@ -273,8 +330,9 @@ PLUGIN_API void XPluginStop(void)
 {
     gPluginEnabled.store(false);
     gLogging.store(false);
-    XPLMUnregisterFlightLoopCallback(FlightLoopCallback, NULL);
+    XPLMUnregisterFlightLoopCallback(LoggerCallback, NULL);
     closeLogFile();
+    XPLMUnregisterFlightLoopCallback(StatusCheckCallback, NULL);
     LPRINTF("DataRecorder Plugin: XPluginStop\n");
 }
 
@@ -344,7 +402,8 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     // RGB: White [1.0, 1.0, 1.0], Lime Green [0.0, 1.0, 0.0]
     static float datarecorder_color[] = {0.0, 1.0, 0.0};
     static int errCnt = 0;
-
+    static bool msg_on = false;
+    static int cnt = 0;
     if (inWindowID != gDataRecWindow)
         return;
 
@@ -372,7 +431,21 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                     gFileOpenErr.store(false);
                 }
             } else {
-                sprintf(str1, "Logging - %s", (char*)"Click to enable");
+                if (gFlashUI.load()) {
+                    cnt += 1;
+                    if (msg_on) {
+                        sprintf(str1, "Logging - %s", (char*)"Click to enable");
+                    } else {
+                        sprintf(str1, "Logging - ");
+                    }
+                    if (cnt >= 10) {
+                        cnt = 0;
+                        msg_on = msg_on ? false : true;
+                    }
+                } else {
+                    cnt = 0;
+                    sprintf(str1, "Logging - %s", (char*)"Click to enable");
+                }
             }
             break;
         }
@@ -438,7 +511,7 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
         break;
     case xplm_MouseUp:
         // Ignore mouse-clicks for a short time
-        // for a open file error.
+        // when there was a previous open file error.
         if (gFileOpenErr.load())
             break;
         if (MouseDownX == x || MouseDownY == y) {
