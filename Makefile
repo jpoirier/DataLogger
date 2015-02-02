@@ -24,19 +24,19 @@ ifeq ($(HOSTOS),darwin)
  LIBS=-framework IOKit -framework CoreFoundation -framework OpenGL
  LNFLAGS=-arch $(ARCH_APL) -dynamiclib -flat_namespace -undefined warning
  # -DTOGGLE_TEST_FEATURE
- CFLAGS=-std=c++11 -arch $(ARCH_APL) -Wall -O3 -D_APPLE_ -DAPL=1 -DIBM=0 -DLIN=0 -DVERSION=$(GIT_VER)
+ CFLAGS=-std=c++11 -arch $(ARCH_APL) -Wall -O3 -D_APPLE_ -DAPL=1 -DIBM=0 -DLIN=0 -DVERSION="\"$(GIT_VER)\""
 else
  ifeq ($(HOSTOS),linux)
   FILE_NAME=lin.xpl
   LIBS=
   # -m32 -m64
   LNFLAGS=-m$(ARCH) -shared -rdynamic -nodefaultlibs -undefined_warning
-  CFLAGS=-std=c++11 -m$(ARCH) -Wall -O3 -DAPL=0 -DIBM=0 -DLIN=1 -fvisibility=hidden -fPIC -DVERSION=$(GIT_VER)
+  CFLAGS=-std=c++11 -m$(ARCH) -Wall -O3 -DAPL=0 -DIBM=0 -DLIN=1 -fvisibility=hidden -fPIC -DVERSION="\"$(GIT_VER)\""
  else # windows
   FILE_NAME=win.xpl
   LIBS=-lXPLM
   LNFLAGS=-m$(ARCH) -Wl,-O1 -shared -L. -L./SDK/Libraries/Win/
-  CFLAGS=-std=c++11 -m$(ARCH) -DAPL=0 -DIBM=1 -DLIN=0 -Wall -fpermissive -DVERSION=$(GIT_VER)
+  CFLAGS=-std=c++11 -m$(ARCH) -DAPL=0 -DIBM=1 -DLIN=0 -Wall -fpermissive -DVERSION="\"$(GIT_VER)\""
   WINDLLMAIN=main_win.o
  endif
 endif

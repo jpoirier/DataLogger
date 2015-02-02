@@ -23,6 +23,7 @@
 #include <fstream>
 #include <atomic>
 #include <cstring>
+#include <algorithm>
 
 #include "./SDK/CHeaders/XPLM/XPLMPlugin.h"
 #include "./SDK/CHeaders/XPLM/XPLMProcessing.h"
@@ -112,12 +113,16 @@ XPLMDataRef panel_visible_win_t_dataref;
 /**
  *
  */
+#define OUTNAME "DataRecorder\0"
+#define OUTSIG "jdp.data.recorder\0"
 PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 {
     LPRINTF("DataRecorder Plugin: XPluginStart\n");
-    strcpy(outName, "DataRecorder");
-    strcpy(outSig , "jdp.data.recorder");
-    strcpy(outDesc, DESC(VERSION));
+    copy_n(outName, strlen(OUTNAME)+1, (char*)OUTNAME);
+    copy_n(outSig , strlen(OUTSIG)+1, (char*)OUTSIG);
+    string s = string("DataRecorder ") + string(VERSION) + string(" ") +
+               string(__DATE__) + string(" (jdpoirier@gmail.com)\0");
+    copy_n(outDesc, s.length()+1, (char*)s.c_str());
 
     gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
@@ -415,6 +420,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     static int errCnt = 0;
     static bool msg_on = false;
     static int cnt = 0;
+
     if (inWindowID != gDataRecWindow)
         return;
 
