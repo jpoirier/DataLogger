@@ -22,6 +22,7 @@
 #include <iostream>
 #include <fstream>
 #include <atomic>
+#include <cstring>
 
 #include "./SDK/CHeaders/XPLM/XPLMPlugin.h"
 #include "./SDK/CHeaders/XPLM/XPLMProcessing.h"
@@ -47,14 +48,17 @@ static void writeFileProlog(string t);
 static void writeFileEpilog(void);
 static void writeData(double lat, double lon, double alt, const string t);
 static void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon);
-static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags inFlags,
-                              char inVirtualKey, void* inRefcon, int losingFocus);
+static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey,
+                              XPLMKeyFlags inFlags, char inVirtualKey,
+                              void* inRefcon, int losingFocus);
 static int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
                                XPLMMouseStatus inMouse, void* inRefcon);
-static float LoggerCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
-                         int inCounter, void* inRefcon);
-static float StatusCheckCallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop,
-                          int inCounter, void* inRefcon);
+static float LoggerCallback(float inElapsedSinceLastCall,
+                            float inElapsedTimeSinceLastFlightLoop,
+                            int inCounter, void* inRefcon);
+static float StatusCheckCallback(float inElapsedSinceLastCall,
+                                 float inElapsedTimeSinceLastFlightLoop,
+                                 int inCounter, void* inRefcon);
 
 // To define, pass -DVERSION=vX.Y.X when building,
 // e.g. in a make file
@@ -244,33 +248,38 @@ string const currentDateTime(bool useDash)
 /**
  *
  */
+#define UI_FLASHTIME (20)
+#define GRNDSPEED_THRESH (2)
+#define MOVING_THRESH (5)
 float StatusCheckCallback(float inElapsedSinceLastCall,
                           float inElapsedTimeSinceLastFlightLoop,
                           int inCounter, void* inRefcon)
 {
     static int cnt = 0;
     static bool doGrndCheck = true;
+
     if (!gPluginEnabled.load()) {
         // LPRINTF("DataRecorder Plugin: StatusCheckCallback...\n");
         return 10.0;
     }
+
     if (!gLogging.load()) {
         if (gFlashUI.load()) {
             cnt += 1;
-            if (cnt >= 20) {
+            if (cnt >= UI_FLASHTIME) {
                 cnt = 0;
                 gFlashUI.store(false);
             }
         } else if (doGrndCheck) {
             int gs = (int)XPLMGetDataf(gs_dref);
-            if (gs > 2) {
+            if (gs > GRNDSPEED_THRESH) {
                 cnt += 1;
             } else {
                 cnt = 0;
                 doGrndCheck = true;
                 gFlashUI.store(false);
             }
-            if (cnt >= 5) {
+            if (cnt >= MOVING_THRESH) {
                 cnt = 0;
                 gFlashUI.store(true);
                 doGrndCheck = false;
@@ -278,6 +287,7 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
         }
         return 1.0;
     }
+
     cnt = 0;
     doGrndCheck = true;
     return 10.0;
@@ -396,6 +406,8 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
 /**
  *
  */
+#define TXT_ONOFF_THRESH (10)
+#define FILEERR_OFF_THRESH (120)
 void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 {
     static char str1[100];
@@ -426,7 +438,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
             if (gFileOpenErr.load()) {
                 errCnt += 1;
                 sprintf(str1, "Logging - %s", (char*)"Error opening file");
-                if (errCnt == 120) {
+                if (errCnt >= FILEERR_OFF_THRESH) {
                     errCnt = 0;
                     gFileOpenErr.store(false);
                 }
@@ -438,7 +450,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                     } else {
                         sprintf(str1, "Logging - ");
                     }
-                    if (cnt >= 10) {
+                    if (cnt >= TXT_ONOFF_THRESH) {
                         cnt = 0;
                         msg_on = msg_on ? false : true;
                     }
