@@ -69,7 +69,7 @@ static float StatusCheckCallback(float inElapsedSinceLastCall,
 
 // sigh. two levels of macros needed to stringify
 // the result of expansion of a macro argument
-#define STR(v) "DataRecorder " #v  " " __DATE__ " (jdpoirier@gmail.com)\0"
+#define STR(v) "DataRecorder " #v  "  " __DATE__ " (jdpoirier@gmail.com)\0"
 #define DESC(v) STR(v)
 
 #define STRING2(x) #x

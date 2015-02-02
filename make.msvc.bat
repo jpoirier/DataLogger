@@ -2,9 +2,11 @@
 
 set ARCH=X64
 set XPLM_LIB="XPLM_64.lib"
+set vs_toolset=x86_amd64
 
 if "%1"=="386" (
 set ARCH=X86
+set vs_toolset=x86
 set XPLM_LIB="XPLM.lib"
 )
 
@@ -23,30 +25,27 @@ echo ----------------------------------------------------
 echo -
 echo -
 
+:: Visual Studio 2013
+:vc-set-2013
+if not defined VS120COMNTOOLS  goto vc-set-2012
+if not exist "%VS120COMNTOOLS%\..\..\vc\vcvarsall.bat" goto vc-set-2012
+echo -
+echo - Visual C++ 2013 found.
+echo -
+call "%VS120COMNTOOLS%\..\..\vc\vcvarsall.bat" %vs_toolset%
 goto STARTCOMPILING
+
 :: Visual Studio 2012
-if defined VS120COMNTOOLS  (
-	if exist "%VS120COMNTOOLS%\vsvars32.bat" (
-		echo -
-		echo - Visual C++ 2012 found.
-		echo -
-		call "%VS120COMNTOOLS%\..\..\VC\vsvarsall.bat" x86_amd64
-		goto STARTCOMPILING
-	)
-)
+:vc-set-2012
+if not defined VS110COMNTOOLS  goto vc-set-notfound
+if not exist "%VS110COMNTOOLS%\..\..\vc\vcvarsall.bat" vc-set-notfound
+echo -
+echo - Visual C++ 2011 found.
+echo -
+call "%VS110COMNTOOLS%\..\..\vc\vcvarsall.bat" %vs_toolset%
+goto STARTCOMPILING
 
-:: Visual Studio 2010
-if defined VS100COMNTOOLS  (
-	if exist "%VS100COMNTOOLS%\vsvars32.bat" (
-		echo -
-		echo - Visual C++ 2010 found.
-		echo -
-		call "%VS100COMNTOOLS%\vsvars32.bat"
-		goto STARTCOMPILING
-	)
-)
-
-
+:vc-set-notfound
 echo -
 echo - No Visual C++ found, please set the enviroment variable
 echo -
@@ -62,7 +61,6 @@ goto ERROR
 :STARTCOMPILING
 
 :: buid process
-del *.xpl
 
 set CL_OPTS=/c /GS /W3 /Gy /Zc:wchar_t /Zi /Gm- /O2 /Ob1 /fp:precise /GF /WX- /Zc:forScope /Gd /MT /EHsc /nologo
 
