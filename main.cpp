@@ -113,16 +113,20 @@ XPLMDataRef panel_visible_win_t_dataref;
 /**
  *
  */
-#define OUTNAME "DataRecorder\0"
-#define OUTSIG "jdp.data.recorder\0"
 PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 {
     LPRINTF("DataRecorder Plugin: XPluginStart\n");
-    copy_n(outName, strlen(OUTNAME)+1, (char*)OUTNAME);
-    copy_n(outSig , strlen(OUTSIG)+1, (char*)OUTSIG);
-    string s = string("DataRecorder ") + string("VERSION") + string(" ") +
-               string(__DATE__) + string(" (jdpoirier@gmail.com)\0");
-    copy_n(outDesc, s.length()+1, (char*)s.c_str());
+    // const string outname = "DataRecorder\0";
+    // const string outsig = "jdp.data.recorder\0";
+    // const string outdesc = string("DataRecorder ") + string("VERSION") +
+    //                               string(" ") + string(__DATE__) +
+    //                               string(" (jdpoirier@gmail.com)\0");
+    // copy_n(outName, outname.length()+1, (char*)outname.c_str());
+    // copy_n(outSig , outsig.length()+1, (char*)outsig.c_str());
+    // copy_n(outDesc, outdesc.length()+1, (char*)outdesc.c_str());
+    strcpy(outName, "DataRecorder");
+    strcpy(outSig , "jdp.data.recorder");
+    strcpy(outDesc, DESC(VERSION));
 
     gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");

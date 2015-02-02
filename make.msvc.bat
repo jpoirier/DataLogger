@@ -17,7 +17,7 @@ for /f "delims=" %%i in ('git describe --tags') do @set GIT_VER=%%i
 echo -
 echo -
 echo ----------------------------------------------------
-echo Building CommViewer %GIT_VER%
+echo Building DataLogger %GIT_VER%
 echo ARCH=%ARCH% XPLM_LIB=%XPLM_LIB%
 echo ----------------------------------------------------
 echo -
