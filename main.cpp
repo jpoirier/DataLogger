@@ -14,12 +14,12 @@
  //#include <GL/gl.h>
 #endif
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
+// #include <stdlib.h>
+// #include <stdio.h>
+// #include <math.h>
 #include <string>
 #include <time.h>
-#include <iostream>
+// #include <iostream>
 #include <fstream>
 #include <atomic>
 #include <cstring>
