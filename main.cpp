@@ -410,7 +410,6 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
 #define FILEERR_OFF_THRESH (120)
 void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 {
-    static char str1[100];
     // RGB: White [1.0, 1.0, 1.0], Lime Green [0.0, 1.0, 0.0]
     static float datarecorder_color[] = {0.0, 1.0, 0.0};
     static int errCnt = 0;
@@ -428,16 +427,17 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
     XPLMDrawTranslucentDarkBox(left, top, right, bottom);
 
+    string str1;
     switch (reinterpret_cast<size_t>(inRefcon)) {
     case DATARECORDER_WINDOW:
         switch (gLogging.load()) {
         case true:
-            sprintf(str1, "Logging - %s", (char*)"Enabled...");
+            str1 = "Logging - Enabled...";
             break;
         case false:
             if (gFileOpenErr.load()) {
                 errCnt += 1;
-                sprintf(str1, "Logging - %s", (char*)"Error opening file");
+                str1 = "Logging - Error opening file";
                 if (errCnt >= FILEERR_OFF_THRESH) {
                     errCnt = 0;
                     gFileOpenErr.store(false);
@@ -446,9 +446,9 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                 if (gFlashUI.load()) {
                     cnt += 1;
                     if (msg_on) {
-                        sprintf(str1, "Logging - %s", (char*)"Click to enable");
+                        str1 = "Logging - Click to enable...";
                     } else {
-                        sprintf(str1, "Logging - ");
+                        str1 = "Logging - ";
                     }
                     if (cnt >= TXT_ONOFF_THRESH) {
                         cnt = 0;
@@ -456,7 +456,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                     }
                 } else {
                     cnt = 0;
-                    sprintf(str1, "Logging - %s", (char*)"Click to enable");
+                    str1 = "Logging - Click to enable...";
                 }
             }
             break;
@@ -464,7 +464,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
         XPLMDrawString(datarecorder_color,
                        left+4,
                        top-20,
-                       str1,
+                       (char*)str1.c_str(),
                        NULL,
                        xplmFont_Basic);
         break;
