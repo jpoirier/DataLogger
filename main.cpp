@@ -120,7 +120,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     LPRINTF("DataRecorder Plugin: XPluginStart\n");
     copy_n(outName, strlen(OUTNAME)+1, (char*)OUTNAME);
     copy_n(outSig , strlen(OUTSIG)+1, (char*)OUTSIG);
-    string s = string("DataRecorder ") + string(VERSION) + string(" ") +
+    string s = string("DataRecorder ") + string("VERSION") + string(" ") +
                string(__DATE__) + string(" (jdpoirier@gmail.com)\0");
     copy_n(outDesc, s.length()+1, (char*)s.c_str());
 
