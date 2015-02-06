@@ -552,14 +552,10 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
         if (gFileOpenErr.load())
             break;
         if (MouseDownX == x || MouseDownY == y) {
-            switch (gLogging.load()) {
-            case true:
+            if (gLogging.load())
                 disableLogging();
-                break;
-            case false:
+            else
                 enableLogging();
-                break;
-            }
         }
         break;
     } // switch (inMouse)
