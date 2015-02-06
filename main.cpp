@@ -69,7 +69,7 @@ static float StatusCheckCallback(float inElapsedSinceLastCall,
 
 // sigh. two levels of macros needed to stringify
 // the result of expansion of a macro argument
-#define STR(v) "DataRecorder " #v  "  " __DATE__ " (jdpoirier@gmail.com)\0"
+#define STR(v) "DataLogger " #v  "  " __DATE__ " (jdpoirier@gmail.com)\0"
 #define DESC(v) STR(v)
 
 #define STRING2(x) #x
@@ -78,7 +78,7 @@ static float StatusCheckCallback(float inElapsedSinceLastCall,
 #pragma message (DESC(VERSION))
 
 
-static XPLMWindowID gDataRecWindow = NULL;
+static XPLMWindowID gDataLogWindow = NULL;
 static atomic<bool> gPluginEnabled(false);
 // static atomic<int> gPlaneLoaded(0);
 
@@ -87,15 +87,15 @@ static atomic<float> gFlCbInterval(0.100f); // 10Hz update rate?
 
 #define WINDOW_WIDTH (180)
 #define WINDOW_HEIGHT (30)
-static int gRecWinPosX;
-static int gRecWinPosY;
+static int gLogWinPosX;
+static int gLogWinPosY;
 static int gLastMouseX;
 static int gLastMouseY;
 
 // general & misc
 enum {
     PLUGIN_PLANE_ID = 0
-    ,DATARECORDER_WINDOW
+    ,DATALOGGER_WINDOW
 };
 
 XPLMDataRef gs_dref = NULL;
@@ -115,17 +115,17 @@ XPLMDataRef panel_visible_win_t_dataref;
  */
 PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 {
-    LPRINTF("DataRecorder Plugin: XPluginStart\n");
-    // const string outname = "DataRecorder\0";
-    // const string outsig = "jdp.data.recorder\0";
-    // const string outdesc = string("DataRecorder ") + string("VERSION") +
+    LPRINTF("DataLogger Plugin: XPluginStart\n");
+    // const string outname = "DataLogger\0";
+    // const string outsig = "jdp.data.logger\0";
+    // const string outdesc = string("DataLogger ") + string("VERSION") +
     //                               string(" ") + string(__DATE__) +
     //                               string(" (jdpoirier@gmail.com)\0");
     // copy_n(outName, outname.length()+1, (char*)outname.c_str());
     // copy_n(outSig , outsig.length()+1, (char*)outsig.c_str());
     // copy_n(outDesc, outdesc.length()+1, (char*)outdesc.c_str());
-    strcpy(outName, "DataRecorder");
-    strcpy(outSig , "jdp.data.recorder");
+    strcpy(outName, "DataLogger");
+    strcpy(outSig , "jdp.data.logger");
     strcpy(outDesc, DESC(VERSION));
 
     gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
@@ -135,18 +135,18 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     XPLMRegisterFlightLoopCallback(StatusCheckCallback, 5.0, NULL);
     panel_visible_win_t_dataref = XPLMFindDataRef("sim/graphics/view/panel_visible_win_t");
     int top = (int)XPLMGetDataf(panel_visible_win_t_dataref);
-    gRecWinPosX = 0;
-    gRecWinPosY = top - 150;
-    gDataRecWindow = XPLMCreateWindow(gRecWinPosX,                  // left
-                                      gRecWinPosY,                  // top
-                                      gRecWinPosX+WINDOW_WIDTH,     // right
-                                      gRecWinPosY-WINDOW_HEIGHT,    // bottom
+    gLogWinPosX = 0;
+    gLogWinPosY = top - 150;
+    gDataLogWindow = XPLMCreateWindow(gLogWinPosX,                  // left
+                                      gLogWinPosY,                  // top
+                                      gLogWinPosX+WINDOW_WIDTH,     // right
+                                      gLogWinPosY-WINDOW_HEIGHT,    // bottom
                                       true,                         // is visible
                                       DrawWindowCallback,
                                       HandleKeyCallback,
                                       HandleMouseCallback,
-                                      (void*)DATARECORDER_WINDOW);  // Refcon
-    LPRINTF("DataRecorder Plugin: startup completed\n");
+                                      (void*)DATALOGGER_WINDOW);  // Refcon
+    LPRINTF("DataLogger Plugin: startup completed\n");
     return PROCESSED_EVENT;
 }
 
@@ -159,12 +159,12 @@ bool openLogFile(void)
         closeLogFile();
 
     string t = currentDateTime(true);
-    string file = string("DataRecord-") + t + string(".gpx");
+    string file = string("DataLog-") + t + string(".gpx");
     // const char *ptr = file.c_str(); LPRINTF(ptr);
 
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
     if (!gFd.is_open()) {
-        LPRINTF("DataRecorder Plugin: startup error, unable to open the output file...\n");
+        LPRINTF("DataLogger Plugin: startup error, unable to open the output file...\n");
         return false;
     }
     writeFileProlog(t);
@@ -192,7 +192,7 @@ void writeFileProlog(string t)
     gFd << "<metadata>\n";
     gFd << "<time>" << t << "</time>\n";
     gFd << "</metadata>\n";
-    gFd << "<trk><name>DataRecorder plugin</name><trkseg>\n";
+    gFd << "<trk><name>DataLogger plugin</name><trkseg>\n";
 }
 
 /**
@@ -268,7 +268,7 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
     static bool doGrndCheck = true;
 
     if (!gPluginEnabled.load()) {
-        // LPRINTF("DataRecorder Plugin: StatusCheckCallback...\n");
+        // LPRINTF("DataLogger Plugin: StatusCheckCallback...\n");
         return 10.0;
     }
 
@@ -312,7 +312,7 @@ float LoggerCallback(float inElapsedSinceLastCall,
     if (!gPluginEnabled.load() || !gLogging.load()) {
         return 0.0;  // disable the callback
     }
-    // LPRINTF("DataRecorder Plugin: LoggerCallback writing data...\n");
+    // LPRINTF("DataLogger Plugin: LoggerCallback writing data...\n");
     writeData(XPLMGetDataf(lat_dref),
                 XPLMGetDataf(lon_dref),
                 XPLMGetDataf(alt_dref),
@@ -352,7 +352,7 @@ PLUGIN_API void XPluginStop(void)
     XPLMUnregisterFlightLoopCallback(LoggerCallback, NULL);
     closeLogFile();
     XPLMUnregisterFlightLoopCallback(StatusCheckCallback, NULL);
-    LPRINTF("DataRecorder Plugin: XPluginStop\n");
+    LPRINTF("DataLogger Plugin: XPluginStop\n");
 }
 
 /**
@@ -362,7 +362,7 @@ PLUGIN_API void XPluginDisable(void)
 {
     gPluginEnabled.store(false);
     disableLogging();
-    LPRINTF("DataRecorder Plugin: XPluginDisable\n");
+    LPRINTF("DataLogger Plugin: XPluginDisable\n");
 }
 
 /**
@@ -371,7 +371,7 @@ PLUGIN_API void XPluginDisable(void)
 PLUGIN_API int XPluginEnable(void)
 {
     gPluginEnabled.store(true);
-     LPRINTF("DataRecorder Plugin: XPluginEnable\n");
+     LPRINTF("DataLogger Plugin: XPluginEnable\n");
     return PROCESSED_EVENT;
 }
 
@@ -385,25 +385,25 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
         switch (inMsg) {
         case XPLM_MSG_PLANE_LOADED:
             // gPlaneLoaded.store();
-            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_LOADED\n");
+            // LPRINTF("DataLogger Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_LOADED\n");
             break;
         case XPLM_MSG_AIRPORT_LOADED:
-            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_AIRPORT_LOADED\n");
+            // LPRINTF("DataLogger Plugin: XPluginReceiveMessage XPLM_MSG_AIRPORT_LOADED\n");
             break;
         case XPLM_MSG_SCENERY_LOADED:
-            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_SCENERY_LOADED\n");
+            // LPRINTF("DataLogger Plugin: XPluginReceiveMessage XPLM_MSG_SCENERY_LOADED\n");
             break;
         case XPLM_MSG_AIRPLANE_COUNT_CHANGED:
-            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_AIRPLANE_COUNT_CHANGED\n");
+            // LPRINTF("DataLogger Plugin: XPluginReceiveMessage XPLM_MSG_AIRPLANE_COUNT_CHANGED\n");
             break;
         case XPLM_MSG_PLANE_CRASHED:
             // XXX: system state and procedure, what's difference between
             // an unloaded and crashed plane?
-            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_CRASHED\n");
+            // LPRINTF("DataLogger Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_CRASHED\n");
             break;
         case XPLM_MSG_PLANE_UNLOADED:
             // gPlaneLoaded.store();
-            // LPRINTF("DataRecorder Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_UNLOADED\n");
+            // LPRINTF("DataLogger Plugin: XPluginReceiveMessage XPLM_MSG_PLANE_UNLOADED\n");
             break;
         default:
             // unknown, anything to do?
@@ -420,12 +420,12 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
 void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 {
     // RGB: White [1.0, 1.0, 1.0], Lime Green [0.0, 1.0, 0.0]
-    static float datarecorder_color[] = {0.0, 1.0, 0.0};
+    static float datalogger_color[] = {0.0, 1.0, 0.0};
     static int errCnt = 0;
     static bool msg_on = false;
     static int cnt = 0;
 
-    if (inWindowID != gDataRecWindow)
+    if (inWindowID != gDataLogWindow)
         return;
 
     int left;
@@ -439,7 +439,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 
     string str1;
     switch (reinterpret_cast<size_t>(inRefcon)) {
-    case DATARECORDER_WINDOW:
+    case DATALOGGER_WINDOW:
         switch (gLogging.load()) {
         case true:
             str1 = "Logging - Enabled...";
@@ -471,7 +471,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
             }
             break;
         }
-        XPLMDrawString(datarecorder_color,
+        XPLMDrawString(datalogger_color,
                        left+4,
                        top-20,
                        (char*)str1.c_str(),
@@ -489,7 +489,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 void HandleKeyCallback(XPLMWindowID inWindowID, char inKey, XPLMKeyFlags inFlags,
                        char inVirtualKey, void* inRefcon, int losingFocus)
 {
-    if (inWindowID != gDataRecWindow)
+    if (inWindowID != gDataLogWindow)
         return;
 }
 
@@ -504,14 +504,14 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
     static int MouseDownX;
     static int MouseDownY;
 
-    if (inWindowID != gDataRecWindow)
+    if (inWindowID != gDataLogWindow)
         return IGNORED_EVENT;
 
     switch (inMouse) {
     case xplm_MouseDown:
-        // if ((x >= gRecWinPosX+WINDOW_WIDTH-8) &&
-        //     (x <= gRecWinPosX+WINDOW_WIDTH) &&
-        //     (y <= gRecWinPosY) && (y >= gRecWinPosY-8)) {
+        // if ((x >= gLogWinPosX+WINDOW_WIDTH-8) &&
+        //     (x <= gLogWinPosX+WINDOW_WIDTH) &&
+        //     (y <= gLogWinPosY) && (y >= gLogWinPosY-8)) {
         //         windowCloseRequest = 1;
         //     } else {
                 MouseDownX = gLastMouseX = x;
@@ -521,13 +521,13 @@ int HandleMouseCallback(XPLMWindowID inWindowID, int x, int y,
     case xplm_MouseDrag:
         // this event fires while xplm_MouseDown is active
         // and whether or not the window is being dragged
-        gRecWinPosX += (x - gLastMouseX);
-        gRecWinPosY += (y - gLastMouseY);
-        XPLMSetWindowGeometry(gDataRecWindow,
-                              gRecWinPosX,
-                              gRecWinPosY,
-                              gRecWinPosX+WINDOW_WIDTH,
-                              gRecWinPosY-WINDOW_HEIGHT);
+        gLogWinPosX += (x - gLastMouseX);
+        gLogWinPosY += (y - gLastMouseY);
+        XPLMSetWindowGeometry(gDataLogWindow,
+                              gLogWinPosX,
+                              gLogWinPosY,
+                              gLogWinPosX+WINDOW_WIDTH,
+                              gLogWinPosY-WINDOW_HEIGHT);
         gLastMouseX = x;
         gLastMouseY = y;
         break;
