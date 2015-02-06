@@ -85,8 +85,8 @@ static atomic<bool> gPluginEnabled(false);
 // time interval > 0.0 (no callback) > flight loop frame rate
 static atomic<float> gFlCbInterval(0.100f); // 10Hz update rate?
 
-#define WINDOW_WIDTH (180)
-#define WINDOW_HEIGHT (30)
+#define WINDOW_WIDTH (220)
+#define WINDOW_HEIGHT (15)
 static int gLogWinPosX;
 static int gLogWinPosY;
 static int gLastMouseX;
@@ -485,7 +485,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
         }
         XPLMDrawString(datalogger_color,
                        left+4,
-                       top-20,
+                       top-10,
                        (char*)str1.c_str(),
                        NULL,
                        xplmFont_Basic);
