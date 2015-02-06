@@ -271,7 +271,7 @@ string const currentDateTime(bool useDash)
 /**
  *
  */
-#define UI_FLASHTIME (10)
+#define UI_FLASHTIME (20)
 #define GRNDSPEED_THRESH (2)
 #define MOVING_THRESH (5)
 #define LOGSTAT_IND_THRESH (10)
@@ -287,7 +287,7 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
         return 10.0;
     }
 
-    float cb_time;
+    float cb_time = 1.0;
     if (!gLogging.load()) {
         if (gFlashUI.load()) {
             cnt += 1;
