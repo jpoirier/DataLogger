@@ -109,6 +109,7 @@ XPLMDataRef alt_dref = NULL;
 static atomic<bool> gLogging(false);
 static atomic<bool> gFileOpenErr(false);
 static atomic<bool> gFlashUI(false);
+static atomic<int> gLogStatInd(1);
 static ofstream gFd;
 
 XPLMDataRef panel_visible_win_t_dataref;
@@ -305,12 +306,17 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
                 gFlashUI.store(true);
                 doGrndCheck = false;
             }
+        } else {
+            gLogStatInd.fetch_add(1);
+            if (gLogStatInd.load() >= 5)
+                gLogStatInd.store(1);
         }
         return 1.0;
     }
 
     cnt = 0;
     doGrndCheck = true;
+    gLogStatInd.store(1);
     return 10.0;
 }
 
@@ -454,7 +460,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     case DATALOGGER_WINDOW:
         switch (gLogging.load()) {
         case true:
-            str1 = "Data Logger :: Enabled...";
+            str1 = "Data Logger :: Enabled" + string(gLogStatInd.load(), '.');
             break;
         case false:
             if (gFileOpenErr.load()) {
