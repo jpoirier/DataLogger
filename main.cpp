@@ -109,7 +109,8 @@ XPLMDataRef alt_dref = NULL;
 static atomic<bool> gLogging(false);
 static atomic<bool> gFileOpenErr(false);
 static atomic<bool> gFlashUI(false);
-static atomic<int> gLogStatInd(1);
+static atomic<bool> gFlashUIMsgOn(false);
+static atomic<int> gLogStatIndCnt(1);
 static ofstream gFd;
 
 XPLMDataRef panel_visible_win_t_dataref;
@@ -270,12 +271,13 @@ string const currentDateTime(bool useDash)
 /**
  *
  */
-#define UI_FLASHTIME (20)
+#define UI_FLASHTIME (10)
 #define GRNDSPEED_THRESH (2)
 #define MOVING_THRESH (5)
+#define LOGSTAT_IND_THRESH (10)
 float StatusCheckCallback(float inElapsedSinceLastCall,
-                          float inElapsedTimeSinceLastFlightLoop,
-                          int inCounter, void* inRefcon)
+                          float inElapsedTimeSinceLastFlightLoop, int inCounter,
+                          void* inRefcon)
 {
     static int cnt = 0;
     static bool doGrndCheck = true;
@@ -285,13 +287,17 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
         return 10.0;
     }
 
+    float cb_time;
     if (!gLogging.load()) {
         if (gFlashUI.load()) {
             cnt += 1;
             if (cnt >= UI_FLASHTIME) {
                 cnt = 0;
                 gFlashUI.store(false);
+                gFlashUIMsgOn.store(false);
             }
+            gFlashUIMsgOn.store(!gFlashUIMsgOn.load());
+            cb_time = 0.5;
         } else if (doGrndCheck) {
             int gs = (int)XPLMGetDataf(gs_dref);
             if (gs > GRNDSPEED_THRESH) {
@@ -306,16 +312,21 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
                 gFlashUI.store(true);
                 doGrndCheck = false;
             }
+            cb_time = 1.0;
+        } else {
+            cb_time = 2.0;
         }
-        gLogStatInd.store(1);
-        return 1.0;
+        gLogStatIndCnt.store(1);
+        return cb_time;
+    } else {
+        gLogStatIndCnt.fetch_add(1);
+        if (gLogStatIndCnt.load() > LOGSTAT_IND_THRESH)
+            gLogStatIndCnt.store(1);
+        cnt = 0;
+        doGrndCheck = true;
+        cb_time = 1.0;
     }
-    gLogStatInd.fetch_add(1);
-    if (gLogStatInd.load() > 10)
-        gLogStatInd.store(1);
-    cnt = 0;
-    doGrndCheck = true;
-    return 1.0;
+    return cb_time;
 }
 
 /**
@@ -431,15 +442,12 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFrom, long inMsg, void* inP
 /**
  *
  */
-#define TXT_ONOFF_THRESH (10)
 #define FILEERR_OFF_THRESH (120)
 void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
 {
     // RGB: White [1.0, 1.0, 1.0], Lime Green [0.0, 1.0, 0.0]
     static float datalogger_color[] = {0.0, 1.0, 0.0};
     static int errCnt = 0;
-    static bool msg_on = false;
-    static int cnt = 0;
 
     if (inWindowID != gDataLogWindow)
         return;
@@ -456,11 +464,9 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     string str1;
     switch (reinterpret_cast<size_t>(inRefcon)) {
     case DATALOGGER_WINDOW:
-        switch (gLogging.load()) {
-        case true:
-            str1 = "Data Logger :: Enabled " + string(gLogStatInd.load(), '.');
-            break;
-        case false:
+        if (gLogging.load()) {
+            str1 = "Data Logger :: Enabled " + string(gLogStatIndCnt.load(), '.');
+        } else {
             if (gFileOpenErr.load()) {
                 errCnt += 1;
                 str1 = "Data Logger :: Error Opening File";
@@ -470,22 +476,15 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                 }
             } else {
                 if (gFlashUI.load()) {
-                    cnt += 1;
-                    if (msg_on) {
+                    if (gFlashUIMsgOn.load()) {
                         str1 = "Data Logger :: Click To Enable...";
                     } else {
                         str1 = "Data Logger ::";
                     }
-                    if (cnt >= TXT_ONOFF_THRESH) {
-                        cnt = 0;
-                        msg_on = msg_on ? false : true;
-                    }
                 } else {
-                    cnt = 0;
                     str1 = "Data Logger :: Click to enable...";
                 }
             }
-            break;
         }
         XPLMDrawString(datalogger_color,
                        left+4,
