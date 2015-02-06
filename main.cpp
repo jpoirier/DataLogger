@@ -469,7 +469,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
         } else {
             if (gFileOpenErr.load()) {
                 errCnt += 1;
-                str1 = "Data Logger :: Error Opening File";
+                str1 = "Data Logger :: Error Opening File.";
                 if (errCnt >= FILEERR_OFF_THRESH) {
                     errCnt = 0;
                     gFileOpenErr.store(false);
@@ -482,7 +482,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                         str1 = "Data Logger ::";
                     }
                 } else {
-                    str1 = "Data Logger :: Click to enable...";
+                    str1 = "Data Logger :: Click To Enable...";
                 }
             }
         }
