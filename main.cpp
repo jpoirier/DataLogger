@@ -171,7 +171,7 @@ bool openLogFile(void)
         closeLogFile();
 
     string t = currentDateTime(true);
-    string file = gOutputFilePath + string("DataLog-") + t + string(".gpx");
+    string file = string("DataLog-") + t + string(".gpx");
     // const char *ptr = file.c_str(); LPRINTF(ptr);
 
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
