@@ -306,18 +306,16 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
                 gFlashUI.store(true);
                 doGrndCheck = false;
             }
-        } else {
-            gLogStatInd.fetch_add(1);
-            if (gLogStatInd.load() >= 5)
-                gLogStatInd.store(1);
         }
+        gLogStatInd.store(1);
         return 1.0;
     }
-
+    gLogStatInd.fetch_add(1);
+    if (gLogStatInd.load() > 10)
+        gLogStatInd.store(1);
     cnt = 0;
     doGrndCheck = true;
-    gLogStatInd.store(1);
-    return 10.0;
+    return 1.0;
 }
 
 /**
@@ -460,7 +458,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     case DATALOGGER_WINDOW:
         switch (gLogging.load()) {
         case true:
-            str1 = "Data Logger :: Enabled" + string(gLogStatInd.load(), '.');
+            str1 = "Data Logger :: Enabled " + string(gLogStatInd.load(), '.');
             break;
         case false:
             if (gFileOpenErr.load()) {
