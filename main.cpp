@@ -103,6 +103,9 @@ XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
+// static string const gIniFileName = "OutputFilePath.ini"
+// static string gOutputFilePath = "";
+
 static atomic<bool> gLogging(false);
 static atomic<bool> gFileOpenErr(false);
 static atomic<bool> gFlashUI(false);
@@ -127,6 +130,15 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outName, "DataLogger");
     strcpy(outSig , "jdp.data.logger");
     strcpy(outDesc, DESC(VERSION));
+
+    // ifstream inifile;
+    // inifile.open("./Resources/plugins/DataLogger/OutputFilePath.ini");
+    // if (inifile.is_open()) {
+    //     string path = "";
+    //     getline(inifile, path);
+    // } else {
+    //     LPRINTF("DataLogger Plugin: OutputFilePath.ini not found\n");
+    // }
 
     gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
@@ -159,7 +171,7 @@ bool openLogFile(void)
         closeLogFile();
 
     string t = currentDateTime(true);
-    string file = string("DataLog-") + t + string(".gpx");
+    string file = gOutputFilePath + string("DataLog-") + t + string(".gpx");
     // const char *ptr = file.c_str(); LPRINTF(ptr);
 
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
@@ -442,12 +454,12 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
     case DATALOGGER_WINDOW:
         switch (gLogging.load()) {
         case true:
-            str1 = "Logging - Enabled...";
+            str1 = "Data Logger :: Enabled...";
             break;
         case false:
             if (gFileOpenErr.load()) {
                 errCnt += 1;
-                str1 = "Logging - Error opening file";
+                str1 = "Data Logger :: Error Opening File";
                 if (errCnt >= FILEERR_OFF_THRESH) {
                     errCnt = 0;
                     gFileOpenErr.store(false);
@@ -456,9 +468,9 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                 if (gFlashUI.load()) {
                     cnt += 1;
                     if (msg_on) {
-                        str1 = "Logging - Click to enable...";
+                        str1 = "Data Logger :: Click To Enable...";
                     } else {
-                        str1 = "Logging - ";
+                        str1 = "Data Logger ::";
                     }
                     if (cnt >= TXT_ONOFF_THRESH) {
                         cnt = 0;
@@ -466,7 +478,7 @@ void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon)
                     }
                 } else {
                     cnt = 0;
-                    str1 = "Logging - Click to enable...";
+                    str1 = "Data Logger :: Click to enable...";
                 }
             }
             break;
