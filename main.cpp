@@ -17,6 +17,13 @@
 // #include <stdlib.h>
 // #include <stdio.h>
 // #include <math.h>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #include <string>
 #include <time.h>
 // #include <iostream>
@@ -40,14 +47,15 @@
 using namespace std;
 // using namespace moodycamel;
 
+static bool dir_exists(const string &dir);
 static void enableLogging(void);
 static void disableLogging(void);
 static bool openLogFile(void);
 static void closeLogFile(void);
-static string const currentDateTime(bool useDash);
-static void writeFileProlog(string t);
+static const string currentDateTime(bool useDash);
+static void writeFileProlog(const string &t);
 static void writeFileEpilog(void);
-static void writeData(double lat, double lon, double alt, const string t);
+static void writeData(double lat, double lon, double alt, const string &t);
 static void DrawWindowCallback(XPLMWindowID inWindowID, void* inRefcon);
 static void HandleKeyCallback(XPLMWindowID inWindowID, char inKey,
                               XPLMKeyFlags inFlags, char inVirtualKey,
@@ -103,8 +111,8 @@ XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
-// static string const gIniFileName = "OutputFilePath.ini"
-// static string gOutputFilePath = "";
+static const string gLogFileName = "DataLogPath.ini";
+static string gLogFilePath = "";
 
 static atomic<bool> gLogging(false);
 static atomic<bool> gFileOpenErr(false);
@@ -133,14 +141,20 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outSig , "jdp.data.logger");
     strcpy(outDesc, DESC(VERSION));
 
-    // ifstream inifile;
-    // inifile.open("./Resources/plugins/DataLogger/OutputFilePath.ini");
-    // if (inifile.is_open()) {
-    //     string path = "";
-    //     getline(inifile, path);
-    // } else {
-    //     LPRINTF("DataLogger Plugin: OutputFilePath.ini not found\n");
-    // }
+    ifstream inifile;
+    inifile.open(gLogFileName);
+    if (inifile.is_open()) {
+        string path = "";
+        getline(inifile, path);
+        if (dir_exists(path) && !path.empty()) {
+            gLogFilePath = path;
+            replace(gLogFilePath.begin(), gLogFilePath.end(), '\\', '/');
+            if (path.back() == '/')
+                path.pop_back();
+        } else {
+            LPRINTF("DataLogger Plugin: Invalid user path given... \n");
+        }
+    }
 
     gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
     lat_dref = XPLMFindDataRef("sim/flightmodel/position/latitude");
@@ -167,13 +181,29 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 /**
  *
  */
+bool dir_exists(const string &dir)
+{
+    if (dir.empty())
+        return false;
+    if (!access(dir.c_str(), 0)) {
+        struct stat status;
+        stat(dir.c_str(), &status);
+        if (status.st_mode & S_IFDIR)
+            return true;
+    }
+    return false;
+}
+
+/**
+ *
+ */
 bool openLogFile(void)
 {
     if (gFd.is_open())
         closeLogFile();
 
     string t = currentDateTime(true);
-    string file = string("DataLog-") + t + string(".gpx");
+    string file = gLogFilePath + '/' + string("DataLog-") + t + string(".gpx");
     // const char *ptr = file.c_str(); LPRINTF(ptr);
 
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
@@ -199,7 +229,7 @@ void closeLogFile(void)
 /**
  *
  */
-void writeFileProlog(string t)
+void writeFileProlog(const string &t)
 {
     gFd << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     gFd << "<gpx version=\"1.0\">\n";
@@ -221,7 +251,7 @@ void writeFileEpilog(void)
 /**
  *
  */
-void writeData(double lat, double lon, double alt, const string t)
+void writeData(double lat, double lon, double alt, const string &t)
 {
     static double lat_ = 0.0;
     static double lon_ = 0.0;
@@ -255,7 +285,7 @@ void writeData(double lat, double lon, double alt, const string t)
  *      if useDash: YYYY-MM-DDTHH-MM-SSZ
  *      else:       YYYY-MM-DDTHH:MM:SSZ
  */
-string const currentDateTime(bool useDash)
+const string currentDateTime(bool useDash)
 {
     time_t now = time(0);
     string buf(22,  '\0');
@@ -287,7 +317,7 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
         return 10.0;
     }
 
-    float cb_time = 1.0;
+    float cb_after = 1.0;
     if (!gLogging.load()) {
         if (gFlashUI.load()) {
             cnt += 1;
@@ -297,7 +327,7 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
                 gFlashUIMsgOn.store(false);
             }
             gFlashUIMsgOn.store(!gFlashUIMsgOn.load());
-            cb_time = 0.5;
+            cb_after = 0.5;
         } else if (doGrndCheck) {
             int gs = (int)XPLMGetDataf(gs_dref);
             if (gs > GRNDSPEED_THRESH) {
@@ -312,21 +342,21 @@ float StatusCheckCallback(float inElapsedSinceLastCall,
                 gFlashUI.store(true);
                 doGrndCheck = false;
             }
-            cb_time = 1.0;
+            cb_after = 1.0;
         } else {
-            cb_time = 2.0;
+            cb_after = 2.0;
         }
         gLogStatIndCnt.store(1);
-        return cb_time;
+        return cb_after;
     } else {
         gLogStatIndCnt.fetch_add(1);
         if (gLogStatIndCnt.load() > LOGSTAT_IND_THRESH)
             gLogStatIndCnt.store(1);
         cnt = 0;
         doGrndCheck = true;
-        cb_time = 1.0;
+        cb_after = 1.0;
     }
-    return cb_time;
+    return cb_after;
 }
 
 /**
