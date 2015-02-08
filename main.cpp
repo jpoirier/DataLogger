@@ -20,8 +20,10 @@
 
 #ifdef _WIN32
 #include <io.h>
+#define ACCESS _access
 #else
 #include <unistd.h>
+#define ACCESS access
 #endif
 
 #include <sys/stat.h>
@@ -188,7 +190,7 @@ bool dir_exists(const string &dir)
 {
     if (dir.empty())
         return false;
-    if (!_access(dir.c_str(), 0)) {
+    if (!ACCESS(dir.c_str(), 0)) {
         struct stat status;
         stat(dir.c_str(), &status);
         if (status.st_mode & S_IFDIR)
