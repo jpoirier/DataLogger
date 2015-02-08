@@ -17,13 +17,14 @@
 // #include <stdlib.h>
 // #include <stdio.h>
 // #include <math.h>
+
 #ifdef _WIN32
 #include <io.h>
 #else
-#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
+#include <sys/stat.h>
 #include <string>
 #include <time.h>
 // #include <iostream>
@@ -111,7 +112,7 @@ XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
-static const string gLogFileName = "DataLogPath.ini";
+static const string gLogFileName = "DataLoggerPath.txt";
 static string gLogFilePath = "";
 
 static atomic<bool> gLogging(false);
@@ -185,7 +186,7 @@ bool dir_exists(const string &dir)
 {
     if (dir.empty())
         return false;
-    if (!access(dir.c_str(), 0)) {
+    if (!_access(dir.c_str(), 0)) {
         struct stat status;
         stat(dir.c_str(), &status);
         if (status.st_mode & S_IFDIR)
