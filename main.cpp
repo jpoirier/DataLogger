@@ -150,13 +150,15 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     if (pathFile.is_open()) {
         string path = "";
         getline(pathFile, path);
-        if (!path.empty() && dir_exists(path)) {
-            gLogFilePath = path;
+        if (!path.empty()) {
             replace(gLogFilePath.begin(), gLogFilePath.end(), '\\', '/');
-            if (!(path.back() == '/'))
+            if (path.back() != '/')
                 path.append("/");
-        } else {
-            LPRINTF("DataLogger Plugin: Invalid directory path given... \n");
+            if (dir_exists(path)) {
+                gLogFilePath = path;
+            } else {
+                LPRINTF("DataLogger Plugin: Invalid directory path given... \n");
+            }
         }
         pathFile.close();
     }
