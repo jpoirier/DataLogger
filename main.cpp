@@ -113,7 +113,7 @@ XPLMDataRef lat_dref = NULL;
 XPLMDataRef lon_dref = NULL;
 XPLMDataRef alt_dref = NULL;
 
-static const string gLogFileName = "DataLoggerPath.txt";
+static const string gLogFileName = "DataLogPath.txt";
 static string gLogFilePath = "";
 
 static atomic<bool> gLogging(false);
