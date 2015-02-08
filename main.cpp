@@ -27,7 +27,6 @@
 #include <sys/stat.h>
 #include <string>
 #include <time.h>
-// #include <iostream>
 #include <fstream>
 #include <atomic>
 #include <cstring>
@@ -142,19 +141,22 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     strcpy(outSig , "jdp.data.logger");
     strcpy(outDesc, DESC(VERSION));
 
-    ifstream inifile;
-    inifile.open(gLogFileName);
-    if (inifile.is_open()) {
+    ifstream pathFile;
+    pathFile.open(gLogFileName, ofstream::app);
+    // ifstream pathFile;
+    // pathFile.open(gLogFileName);
+    if (pathFile.is_open()) {
         string path = "";
-        getline(inifile, path);
-        if (dir_exists(path) && !path.empty()) {
+        getline(pathFile, path);
+        if (!path.empty() && dir_exists(path)) {
             gLogFilePath = path;
             replace(gLogFilePath.begin(), gLogFilePath.end(), '\\', '/');
-            if (path.back() == '/')
-                path.pop_back();
+            if (!(path.back() == '/'))
+                path.append("/");
         } else {
-            LPRINTF("DataLogger Plugin: Invalid user path given... \n");
+            LPRINTF("DataLogger Plugin: Invalid directory path given... \n");
         }
+        pathFile.close();
     }
 
     gs_dref = XPLMFindDataRef("sim/flightmodel/position/groundspeed");
@@ -204,7 +206,7 @@ bool openLogFile(void)
         closeLogFile();
 
     string t = currentDateTime(true);
-    string file = gLogFilePath + '/' + string("DataLog-") + t + string(".gpx");
+    string file = gLogFilePath + string("DataLog-") + t + string(".gpx");
     // const char *ptr = file.c_str(); LPRINTF(ptr);
 
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
