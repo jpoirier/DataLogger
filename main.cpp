@@ -49,6 +49,7 @@
 using namespace std;
 // using namespace moodycamel;
 
+static bool error_bit_set(ifstream* f);
 static bool dir_exists(const string &dir);
 static void enableLogging(void);
 static void disableLogging(void);
@@ -145,20 +146,18 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
 
     ifstream pathFile;
     pathFile.open(gLogFileName, ofstream::app);
-    // ifstream pathFile;
-    // pathFile.open(gLogFileName);
-    if (pathFile.is_open()) {
-        string path = "";
-        getline(pathFile, path);
+    if (pathFile.is_open() && !error_bit_set(&pathFile)) {
+        string path;
+        std::getline(pathFile, path);
         if (!path.empty()) {
             replace(gLogFilePath.begin(), gLogFilePath.end(), '\\', '/');
             if (path.back() != '/')
                 path.append("/");
             if (dir_exists(path)) {
                 gLogFilePath = path;
-            } else {
-                LPRINTF("DataLogger Plugin: Invalid directory path given... \n");
             }
+        } else {
+            LPRINTF("DataLogger Plugin: getline failed... \n");
         }
         pathFile.close();
     }
@@ -185,6 +184,24 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     return PROCESSED_EVENT;
 }
 
+bool error_bit_set(ifstream* f)
+{
+    if (f->eof()) {
+        LPRINTF("DataLogger Plugin: stream eofbit error state...\n");
+        // EOF after std::getline() is not the criterion to stop processing
+        // data: In case there is data between the last delimiter and EOF,
+        // getline() extracts it and sets the eofbit.
+        return true;
+    }else if (f->fail()) {
+        LPRINTF("DataLogger Plugin: stream failbit (or badbit) error state...\n");
+        return true;
+    } else if (f->bad()) {
+        LPRINTF("DataLogger Plugin: stream badbit error state\n");
+        return true;
+    }
+    return false;
+}
+
 /**
  *
  */
@@ -197,7 +214,10 @@ bool dir_exists(const string &dir)
         stat(dir.c_str(), &status);
         if (status.st_mode & S_IFDIR)
             return true;
-    }
+        else
+            LPRINTF("DataLogger Plugin: file dir check failed...\n");
+    } else
+        LPRINTF("DataLogger Plugin: file access failed...\n");
     return false;
 }
 
