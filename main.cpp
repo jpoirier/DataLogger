@@ -151,13 +151,13 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
         string path;
         // get_line(pathFile, path);
         if (getline(pathFile, path)) {
-            replace(gLogFilePath.begin(), gLogFilePath.end(), '\\', '/');
+            replace(path.begin(), path.end(), '\\', '/');
             if (path.back() != '/')
                 path.append("/");
             if (dir_exists(path))
                 gLogFilePath = path;
-            else
-                LPRINTF("DataLogger Plugin: invalid output path... \n");
+            // LPRINTF(path.c_str()); LPRINTF("\n");
+            // LPRINTF(gLogFilePath.c_str()); LPRINTF("\n");
         } else {
             LPRINTF("DataLogger Plugin: getline failed... \n");
         }
@@ -221,12 +221,7 @@ bool dir_exists(const string &dir)
     if (dir.empty())
         return false;
     if (!ACCESS(dir.c_str(), 0)) {
-        struct stat status;
-        stat(dir.c_str(), &status);
-        if (status.st_mode & S_IFDIR)
-            return true;
-        else
-            LPRINTF("DataLogger Plugin: file dir check failed...\n");
+        return true;
     } else {
         LPRINTF("DataLogger Plugin: file access failed...\n");
     }
@@ -242,13 +237,23 @@ bool openLogFile(void)
         closeLogFile();
 
     string t = currentDateTime(true);
-    string file = gLogFilePath + string("DataLog-") + t + string(".gpx");
-    // const char *ptr = file.c_str(); LPRINTF(ptr);
+    string f = string("DataLog-") +  t + string(".gpx");
+    string file = gLogFilePath + f;
+
+    // LPRINTF(file.c_str()); LPRINTF("\n");
 
     gFd.open(file, ofstream::app); // creates the file if it doesn't exist
     if (!gFd.is_open()) {
-        LPRINTF("DataLogger Plugin: startup error, unable to open the output file...\n");
-        return false;
+        LPRINTF("DataLogger Plugin: unable to open the output file ");
+        LPRINTF(file.c_str()); LPRINTF("\n");
+        LPRINTF("DataLogger Plugin: trying to open the base file...\n");
+        gFd.open(f, ofstream::app);
+        if (!gFd.is_open()) {
+            LPRINTF("DataLogger Plugin: couldn't open the base file either...\n");
+            return false;
+        } else {
+            gLogFilePath = "";
+        }
     }
     writeFileProlog(t);
     return true;
