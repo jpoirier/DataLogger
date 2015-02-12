@@ -24,3 +24,7 @@ plugin ignores the redundant information.
 
 If you've not enabled the logger and you start taxing the "Click To Start" text
 will blink for about ten seconds as a reminder.
+
+# Logging window pics
+![Alt text](./images/ClickToEnable.png "Click To Enable")
+![Alt text](./images/Enabled ....png "Enabled")
