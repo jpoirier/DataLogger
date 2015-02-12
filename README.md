@@ -1,7 +1,7 @@
-# DataRecorder
+# DataLogger
 An X-Plane plugin that saves GPS data to a log file locally in GPX format. The
 contents of the file can then be used for multiple purposes, e.g. uploading to
-an online flight analysis solutions such as CloudAhoy.com.
+an online flight analysis solution such as CloudAhoy.com.
 
 # Usage
 - Download and unzip
