@@ -49,6 +49,7 @@
 using namespace std;
 // using namespace moodycamel;
 
+static void get_line(istream &is, string &s);
 static bool error_bit_set(ifstream* f);
 static bool dir_exists(const string &dir);
 static void enableLogging(void);
@@ -148,14 +149,15 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     pathFile.open(gLogFileName, ofstream::app);
     if (pathFile.is_open() && !error_bit_set(&pathFile)) {
         string path;
-        std::getline(pathFile, path);
-        if (!path.empty()) {
+        // get_line(pathFile, path);
+        if (getline(pathFile, path)) {
             replace(gLogFilePath.begin(), gLogFilePath.end(), '\\', '/');
             if (path.back() != '/')
                 path.append("/");
-            if (dir_exists(path)) {
+            if (dir_exists(path))
                 gLogFilePath = path;
-            }
+            else
+                LPRINTF("DataLogger Plugin: invalid output path... \n");
         } else {
             LPRINTF("DataLogger Plugin: getline failed... \n");
         }
@@ -184,6 +186,15 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc)
     return PROCESSED_EVENT;
 }
 
+void get_line(istream &is, string &s)
+{
+    char ch;
+    s.clear();
+    // while (is.good())
+        while (is.get(ch) && ch != '\n' && ch != '\r')
+            s += ch;
+}
+
 bool error_bit_set(ifstream* f)
 {
     if (f->eof()) {
@@ -192,7 +203,7 @@ bool error_bit_set(ifstream* f)
         // data: In case there is data between the last delimiter and EOF,
         // getline() extracts it and sets the eofbit.
         return true;
-    }else if (f->fail()) {
+    } else if (f->fail()) {
         LPRINTF("DataLogger Plugin: stream failbit (or badbit) error state...\n");
         return true;
     } else if (f->bad()) {
@@ -216,8 +227,9 @@ bool dir_exists(const string &dir)
             return true;
         else
             LPRINTF("DataLogger Plugin: file dir check failed...\n");
-    } else
+    } else {
         LPRINTF("DataLogger Plugin: file access failed...\n");
+    }
     return false;
 }
 
